@@ -12,9 +12,17 @@
     <h2>AI CAN Platform</h2>
     <p>Upload a CAN log, select a CAN ID, view analysis, search frames, and graph 16-bit signal pairs.</p>
 
+    <h3>Vehicle Info</h3>
+    <input type="text" id="make" placeholder="Make">
+    <input type="text" id="model" placeholder="Model">
+    <input type="text" id="year" placeholder="Year">
+    <input type="text" id="color" placeholder="Color">
+
     <h3>Upload CAN Log</h3>
     <input type="file" id="fileInput">
     <button onclick="uploadFile()">Upload</button>
+
+    <h3 id="vehicleInfo">Vehicle: -</h3>
 
     <p id="status">No file uploaded yet.</p>
 
@@ -81,6 +89,16 @@ async function uploadFile() {
 
     const formData = new FormData();
     formData.append("file", file);
+
+    formData.append("make", document.getElementById("make").value);
+    formData.append("model", document.getElementById("model").value);
+    formData.append("year", document.getElementById("year").value);
+    formData.append("color", document.getElementById("color").value);
+
+    document.getElementById("status").innerText = "Uploaded: " + currentFilename;
+
+    document.getElementById("vehicleInfo").innerText =
+        `Vehicle: ${result.vehicle.make} ${result.vehicle.model} (${result.vehicle.year}) - ${result.vehicle.color}`;
 
     document.getElementById("status").innerText = "Uploading...";
     document.getElementById("reportBox").innerText = "";
