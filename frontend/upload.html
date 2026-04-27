@@ -23,7 +23,6 @@
     <button onclick="uploadFile()">Upload</button>
 
     <h3 id="vehicleInfo">Vehicle: -</h3>
-
     <p id="status">No file uploaded yet.</p>
 
     <hr>
@@ -89,23 +88,23 @@ async function uploadFile() {
 
     const formData = new FormData();
     formData.append("file", file);
-
     formData.append("make", document.getElementById("make").value);
     formData.append("model", document.getElementById("model").value);
     formData.append("year", document.getElementById("year").value);
     formData.append("color", document.getElementById("color").value);
 
-    document.getElementById("status").innerText = "Uploaded: " + currentFilename;
-
-    document.getElementById("vehicleInfo").innerText =
-        `Vehicle: ${result.vehicle.make} ${result.vehicle.model} (${result.vehicle.year}) - ${result.vehicle.color}`;
-
     document.getElementById("status").innerText = "Uploading...";
+    document.getElementById("vehicleInfo").innerText = "Vehicle: -";
     document.getElementById("reportBox").innerText = "";
     document.getElementById("frameTableBody").innerHTML = "";
     document.getElementById("frameCount").innerText = "No frames loaded yet.";
     document.getElementById("tableSearch").value = "";
     document.getElementById("bestSignalLabel").innerText = "Best Signal: -";
+
+    if (chart) {
+        chart.destroy();
+        chart = null;
+    }
 
     try {
         const response = await fetch(`${API_BASE}/upload`, {
@@ -121,6 +120,11 @@ async function uploadFile() {
 
         currentFilename = result.filename;
         document.getElementById("status").innerText = "Uploaded: " + currentFilename;
+
+        if (result.vehicle) {
+            document.getElementById("vehicleInfo").innerText =
+                `Vehicle: ${result.vehicle.make} ${result.vehicle.model} (${result.vehicle.year}) - ${result.vehicle.color}`;
+        }
 
         await loadCanIds(currentFilename);
     } catch (error) {
@@ -153,14 +157,13 @@ async function loadCanIds(filename) {
 
 async function loadReport() {
     if (!currentFilename) {
+        alert("Please upload a CAN log first");
         return;
     }
 
     const canId = document.getElementById("canSelect").value;
-    let selectedSignal = document.getElementById("signalSelect").value;
-
     const selectedOptions = Array.from(document.getElementById("signalSelect").selectedOptions);
-    const selectedSignals = selectedOptions.map(opt => opt.value);
+    let selectedSignals = selectedOptions.map(option => option.value);
 
     if (!canId) {
         alert("Please select a CAN ID");
@@ -170,18 +173,12 @@ async function loadReport() {
     try {
         const reportResponse = await fetch(`${API_BASE}/report-text/${currentFilename}/${canId}`);
         const reportText = await reportResponse.text();
-
-        const anomalyMap = {};
-
-        
-
         document.getElementById("reportBox").innerText = reportText;
-
-        
 
         const reportJsonRes = await fetch(`${API_BASE}/report/${currentFilename}/${canId}`);
         const reportJson = await reportJsonRes.json();
 
+        const anomalyMap = {};
         if (reportJson.signal16_report) {
             reportJson.signal16_report.forEach(signal => {
                 anomalyMap[signal.signal] = signal.anomalies || [];
@@ -189,7 +186,6 @@ async function loadReport() {
         }
 
         currentBestSignal = null;
-
         let correlatedSignal = null;
 
         if (reportJson.signal16_report && reportJson.signal16_report.length > 0) {
@@ -197,7 +193,7 @@ async function loadReport() {
 
             if (reportJson.correlations && reportJson.correlations.length > 0) {
                 const bestCorrelation = reportJson.correlations
-                    .filter(c => c.pair.includes(currentBestSignal))
+                    .filter(correlation => correlation.pair.includes(currentBestSignal))
                     .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))[0];
 
                 if (bestCorrelation && Math.abs(bestCorrelation.correlation) > 0.5) {
@@ -210,8 +206,6 @@ async function loadReport() {
                 "Best Signal: " + currentBestSignal +
                 (correlatedSignal ? " | Correlated: " + correlatedSignal + " 🔗" : "") +
                 " ⭐";
-
-            document.getElementById("signalSelect").value = currentBestSignal;
         }
 
         const signalResponse = await fetch(`${API_BASE}/signal-data/${currentFilename}/${canId}`);
@@ -220,16 +214,34 @@ async function loadReport() {
         if (!signalData.frames || signalData.frames.length === 0) {
             allFrames = [];
             renderTable([]);
-            drawChart([], selectedSignal, currentBestSignal);
+            drawChartMulti([], currentBestSignal, anomalyMap);
             return;
         }
 
         allFrames = signalData.frames;
         renderTable(allFrames);
 
-        const graphSignals = correlatedSignal
-            ? [currentBestSignal, correlatedSignal]
-            : [currentBestSignal || selectedSignal];
+        let graphSignals = [];
+
+        if (currentBestSignal) {
+            graphSignals.push(currentBestSignal);
+        }
+
+        if (correlatedSignal && !graphSignals.includes(correlatedSignal)) {
+            graphSignals.push(correlatedSignal);
+        }
+
+        selectedSignals.forEach(signal => {
+            if (!graphSignals.includes(signal)) {
+                graphSignals.push(signal);
+            }
+        });
+
+        if (graphSignals.length === 0) {
+            graphSignals = ["signal_0_1"];
+        }
+
+        selectSignalsInDropdown(graphSignals);
 
         const datasets = graphSignals.map(signal => {
             return {
@@ -242,6 +254,14 @@ async function loadReport() {
     } catch (error) {
         document.getElementById("reportBox").innerText = "Error: " + error.message;
     }
+}
+
+function selectSignalsInDropdown(signals) {
+    const options = document.getElementById("signalSelect").options;
+
+    Array.from(options).forEach(option => {
+        option.selected = signals.includes(option.value);
+    });
 }
 
 function filterTable() {
@@ -314,59 +334,6 @@ function downloadReport() {
     link.click();
 
     URL.revokeObjectURL(link.href);
-}
-
-function drawChart(values, signalName, bestSignal) {
-    const ctx = document.getElementById("signalChart").getContext("2d");
-
-    if (chart) {
-        chart.destroy();
-    }
-
-    const isBest = signalName === bestSignal;
-
-    chart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: values.map((_, index) => index),
-            datasets: [{
-                label: signalName + (isBest ? " ⭐ BEST" : ""),
-                data: values,
-                borderWidth: isBest ? 4 : 2,
-                fill: false,
-                tension: 0.2
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: "Frame Index"
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: "Raw 16-bit Value"
-                    }
-                }
-            }
-        }
-    });
-}
-
-function downloadChart() {
-    if (!chart) {
-        alert("No chart to download");
-        return;
-    }
-
-    const link = document.createElement("a");
-    link.href = chart.toBase64Image();
-    link.download = "signal_graph.png";
-    link.click();
 }
 
 function drawChartMulti(datasets, bestSignal, anomalyMap) {
@@ -446,6 +413,17 @@ function drawChartMulti(datasets, bestSignal, anomalyMap) {
     });
 }
 
+function downloadChart() {
+    if (!chart) {
+        alert("No chart to download");
+        return;
+    }
+
+    const link = document.createElement("a");
+    link.href = chart.toBase64Image();
+    link.download = "signal_graph.png";
+    link.click();
+}
 </script>
 
 </body>

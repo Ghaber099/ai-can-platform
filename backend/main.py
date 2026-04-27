@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import analyze
 from routes import upload
 from routes import vehicle
+from routes import dbc
 
 app = FastAPI(title="AI CAN Platform")
 
@@ -24,6 +25,7 @@ app.add_middleware(
 app.include_router(upload.router)
 app.include_router(analyze.router)
 app.include_router(vehicle.router)
+app.include_router(dbc.router)
 
 
 @app.get("/")
