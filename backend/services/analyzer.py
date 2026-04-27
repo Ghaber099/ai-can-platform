@@ -1,4 +1,5 @@
 from pathlib import Path
+from services.dbc_decoder import load_dbc
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -449,7 +450,7 @@ def scaled16_analysis_data(filename: str, can_id: str):
     }
 
 
-def can_id_report(filename: str, can_id: str):
+def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
     frames = parse_log_file(filename)
 
     if frames is None:
@@ -459,6 +460,31 @@ def can_id_report(filename: str, can_id: str):
         frame for frame in frames
         if frame["can_id"] == can_id and len(frame["data"]) >= 8
     ]
+
+    selected_frames = [
+        frame for frame in frames
+        if frame["can_id"] == can_id and len(frame["data"]) >= 8
+    ]
+
+    # 👇 ADD HERE
+    decoded_frames = []
+
+    if dbc_filename:
+        db = load_dbc(dbc_filename)
+
+        if db:
+            for frame in selected_frames[:20]:  # limit for speed
+                try:
+                    frame_id = int(can_id, 16) if "x" in can_id else int(can_id)
+                    raw_bytes = bytes(int(b, 16) for b in frame["data"])
+
+                    decoded = db.decode_message(frame_id, raw_bytes)
+
+                    decoded_frames.append(decoded)
+
+                except Exception:
+                    continue
+
 
     if not selected_frames:
         return {"error": "No frames found for this CAN ID"}
@@ -528,6 +554,7 @@ def can_id_report(filename: str, can_id: str):
             "raw_min": min(values),
             "raw_max": max(values),
             "guess": guess,
+            "dbc_decoded_preview": decoded_frames,
             "anomalies": anomalies,
             "confidence": confidence,
             "scale_div_10_range": [
