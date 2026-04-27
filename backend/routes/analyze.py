@@ -30,10 +30,11 @@ def get_can_ids(filename: str):
 def get_signal_data(filename: str, can_id: str):
     return signal_data(filename, can_id)
 
-
 @router.get("/report/{filename}/{can_id}")
-def get_report(filename: str, can_id: str):
-    return can_id_report(filename, can_id)
+def get_report(filename: str, can_id: str, dbc: str = None):
+    return can_id_report(filename, can_id, dbc)
+
+
 
 
 @router.get("/report-text/{filename}/{can_id}", response_class=PlainTextResponse)
