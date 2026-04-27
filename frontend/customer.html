@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Profile | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2>Customer Profile Center</h2>
+        <p>Create a new customer or open an existing profile by driving license number.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="ghost-btn" onclick="window.close()">Close</button>
+      </div>
+    </header>
+
+    <section class="dashboard-grid">
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Find Existing Customer</h3>
+          <span>Search by License</span>
+        </div>
+
+        <label>Driving License Number</label>
+        <input id="searchLicense" type="text" placeholder="Enter driving license number" />
+
+        <button class="primary-btn full" onclick="findCustomer()">
+          Open Customer Profile
+        </button>
+
+        <pre id="searchResult">No customer searched yet.</pre>
+        <h3>Linked Vehicles</h3>
+        <pre id="linkedVehicles">No vehicles loaded.</pre>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>New Customer</h3>
+          <span>Client Information</span>
+        </div>
+
+        <div class="form-grid">
+          <input id="custName" type="text" placeholder="Full Name" />
+          <input id="custPhone" type="text" placeholder="Phone Number" />
+          <input id="custEmail" type="email" placeholder="Email Address" />
+          <input id="custLicense" type="text" placeholder="Driving License Number" />
+        </div>
+
+        <label>Address</label>
+        <textarea id="custAddress" placeholder="Customer address"></textarea>
+
+        <label>Notes</label>
+        <textarea id="custNotes" placeholder="Notes about customer"></textarea>
+
+        <button class="primary-btn full" onclick="saveCustomer()">
+          Save Customer
+        </button>
+
+        <p id="custStatus">No customer saved yet.</p>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="js/customer.js"></script>
+</body>
+</html>

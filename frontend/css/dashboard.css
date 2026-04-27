@@ -404,3 +404,30 @@ canvas {
     align-items: stretch;
   }
 }
+
+.result-list {
+  margin-top: 16px;
+  color: var(--muted);
+}
+
+.vehicle-result-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.vehicle-result-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--blue);
+}
+
+.vehicle-result-card h3 {
+  margin: 0 0 8px;
+}
+
+.vehicle-result-card p {
+  margin: 5px 0;
+}

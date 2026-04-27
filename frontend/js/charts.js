@@ -1,3 +1,15 @@
+function getSignalLabel(name) {
+  if (name.startsWith("byte_")) {
+    return name + " (1-byte)";
+  }
+
+  if (name.startsWith("signal_")) {
+    return name.replace("signal_", "bytes_") + " (2-byte)";
+  }
+
+  return name;
+}
+
 function drawChartMulti(datasets, bestSignal, anomalyMap = {}) {
   const ctx = document.getElementById("signalChart").getContext("2d");
 
@@ -20,26 +32,31 @@ function drawChartMulti(datasets, bestSignal, anomalyMap = {}) {
 
   datasets.forEach((ds) => {
     const isBest = ds.name === bestSignal;
+    const isByte = ds.name.startsWith("byte_");
 
     chartDatasets.push({
-      label: ds.name + (isBest ? " ⭐ BEST" : ""),
+      label: getSignalLabel(ds.name) + (isBest ? " ⭐ BEST" : ""),
       data: ds.values,
-      borderWidth: isBest ? 4 : 2,
+      borderWidth: isBest ? 4 : isByte ? 2 : 3,
       fill: false,
-      tension: 0.25
+      tension: isByte ? 0 : 0.25,
+      stepped: isByte,
+      pointRadius: isByte ? 3 : 2,
+      yAxisID: isByte ? "yByte" : "ySignal"
     });
 
     const anomalyIndexes = anomalyMap[ds.name] || [];
 
     if (anomalyIndexes.length > 0) {
       chartDatasets.push({
-        label: ds.name + " ⚠ anomalies",
+        label: getSignalLabel(ds.name) + " ⚠ anomalies",
         data: ds.values.map((value, index) =>
           anomalyIndexes.includes(index) ? value : null
         ),
         pointRadius: 7,
         pointHoverRadius: 9,
-        showLine: false
+        showLine: false,
+        yAxisID: isByte ? "yByte" : "ySignal"
       });
     }
   });
@@ -53,12 +70,19 @@ function drawChartMulti(datasets, bestSignal, anomalyMap = {}) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
       plugins: {
         legend: {
           display: true,
           labels: {
             color: "#dbeafe"
           }
+        },
+        tooltip: {
+          enabled: true
         }
       },
       scales: {
@@ -75,7 +99,8 @@ function drawChartMulti(datasets, bestSignal, anomalyMap = {}) {
             color: "#8da2bf"
           }
         },
-        y: {
+        ySignal: {
+          position: "left",
           ticks: {
             color: "#8da2bf"
           },
@@ -84,7 +109,23 @@ function drawChartMulti(datasets, bestSignal, anomalyMap = {}) {
           },
           title: {
             display: true,
-            text: "Signal Values",
+            text: "2-Byte Signal Value",
+            color: "#8da2bf"
+          }
+        },
+        yByte: {
+          position: "right",
+          min: 0,
+          max: 255,
+          ticks: {
+            color: "#8da2bf"
+          },
+          grid: {
+            drawOnChartArea: false
+          },
+          title: {
+            display: true,
+            text: "1-Byte Value",
             color: "#8da2bf"
           }
         }

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vehicle History | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2 id="vehicleTitle">Vehicle History</h2>
+        <p id="vehicleSubtitle">Owners, mileage, repairs, and service records.</p>
+      </div>
+
+      <button class="ghost-btn" onclick="window.close()">Close</button>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span>Total Owners</span>
+        <strong id="totalOwners">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Repair Visits</span>
+        <strong id="totalRepairs">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Last Mileage</span>
+        <strong id="lastMileage">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Last Visit</span>
+        <strong id="lastVisit">--</strong>
+      </div>
+    </section>
+
+    <section class="dashboard-grid">
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Vehicle Information</h3>
+          <span>Identity</span>
+        </div>
+        <pre id="vehicleInfoBox">Loading vehicle...</pre>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Add Owner</h3>
+          <span>Customer Link</span>
+        </div>
+
+        <input id="ownerName" type="text" placeholder="Owner Name" />
+        <input id="ownerLicense" type="text" placeholder="Driving License Number" />
+        <input id="ownerPhone" type="text" placeholder="Phone Number" />
+
+        <button class="primary-btn full" onclick="addOwner()">Add Owner</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Add Repair Visit</h3>
+          <span>Service History</span>
+        </div>
+
+        <input id="repairDate" type="date" />
+        <input id="repairMileage" type="number" placeholder="Mileage / Odometer" />
+        <input id="repairTitle" type="text" placeholder="Repair Title e.g. CAN scan" />
+        <textarea id="repairWork" placeholder="What work was done?"></textarea>
+
+        <button class="primary-btn full" onclick="addRepair()">Add Repair Record</button>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Owners History</h3>
+          <span>All linked owners</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date Added</th>
+                <th>Name</th>
+                <th>License</th>
+                <th>Phone</th>
+              </tr>
+            </thead>
+            <tbody id="ownersTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Repair History</h3>
+          <span>Visits and work done</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Mileage</th>
+                <th>Title</th>
+                <th>Work Done</th>
+              </tr>
+            </thead>
+            <tbody id="repairsTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="js/vehicle_detail.js"></script>
+</body>
+</html>

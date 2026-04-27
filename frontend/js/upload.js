@@ -7,10 +7,10 @@ async function uploadFile() {
     return;
   }
 
-  const make = document.getElementById("make").value || "Unknown";
-  const model = document.getElementById("model").value || "Unknown";
-  const year = document.getElementById("year").value || "Unknown";
-  const color = document.getElementById("color").value || "Unknown";
+  const make = "Unknown";
+  const model = "Unknown";
+  const year = "Unknown";
+  const color = "Unknown";
 
   const formData = new FormData();
   formData.append("file", file);
@@ -41,8 +41,11 @@ async function uploadFile() {
 
     status.innerText = "Uploaded: " + currentFilename;
 
-    document.getElementById("vehicleInfo").innerText =
-      `Vehicle: ${make} ${model} (${year}) - ${color}`;
+    const vehicleInfo = document.getElementById("vehicleInfo");
+
+    if (vehicleInfo) {
+      vehicleInfo.innerText = `Vehicle: ${make} ${model} (${year}) - ${color}`;
+    }
 
     await loadCanIds(currentFilename);
     await loadDbcFiles();
@@ -63,6 +66,12 @@ function resetUI() {
   document.getElementById("frameTableBody").innerHTML = "";
   document.getElementById("frameCount").innerText = "No frames loaded";
   document.getElementById("bestSignalLabel").innerText = "Best Signal: --";
+
+  const vehicleInfo = document.getElementById("vehicleInfo");
+
+  if (vehicleInfo) {
+    vehicleInfo.innerText = "Vehicle: Unknown";
+  }
 
   const canSelect = document.getElementById("canSelect");
   canSelect.innerHTML = `<option value="">Upload CAN log first</option>`;

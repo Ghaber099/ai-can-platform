@@ -1,0 +1,22 @@
+<div class="panel">
+  <div class="panel-header">
+    <h3>Customer Profile</h3>
+    <span>Client Information</span>
+  </div>
+
+  <div class="form-grid">
+    <input id="custName" type="text" placeholder="Full Name" />
+    <input id="custPhone" type="text" placeholder="Phone Number" />
+    <input id="custEmail" type="text" placeholder="Email Address" />
+    <input id="custLicense" type="text" placeholder="Driving License Number" />
+  </div>
+
+  <textarea id="custAddress" placeholder="Address" class="full"></textarea>
+  <textarea id="custNotes" placeholder="Notes" class="full"></textarea>
+
+  <button class="primary-btn full" onclick="saveCustomer()">
+    Save Customer
+  </button>
+
+  <p id="custStatus">No customer saved.</p>
+</div>

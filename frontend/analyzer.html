@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CAN Analyzer | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2>CAN Analyzer</h2>
+        <p>Upload CAN logs, select CAN IDs, inspect frames, and analyze signals.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="ghost-btn" onclick="window.location.href='main.html'">Back Dashboard</button>
+      </div>
+    </header>
+
+    <section class="stats-grid">
+    <div class="stat-card">
+        <span>Total Frames</span>
+        <strong id="statFrames">--</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>CAN IDs</span>
+        <strong id="statCanIds">--</strong>
+    </div>
+
+    
+
+    <div class="stat-card">
+        <span>Best Signal</span>
+        <strong id="statBestSignal">--</strong>
+    </div>
+
+    <div class="stat-card danger">
+        <span>Anomalies</span>
+        <strong id="statAnomalies">--</strong>
+    </div>
+    </section>
+
+
+
+    <section class="dashboard-grid">
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Upload CAN Log</h3>
+          <span>Raw CAN Data</span>
+        </div>
+
+        <input id="fileInput" type="file" accept=".txt,.log,.csv,.asc" />
+        <button class="primary-btn full" onclick="uploadFile()">Upload CAN Log</button>
+        <p id="status">No CAN log uploaded.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Analyze CAN ID</h3>
+          <span>Signal Detection</span>
+        </div>
+
+        <label>CAN ID</label>
+        <select id="canSelect">
+          <option value="">Upload CAN log first</option>
+        </select>
+
+        <label>Signals</label>
+        <select id="signalSelect" multiple size="8">
+
+          <optgroup label="1-Byte Signals (Status / Counter)">
+            <option value="byte_0">byte_0</option>
+            <option value="byte_1">byte_1</option>
+            <option value="byte_2">byte_2</option>
+            <option value="byte_3">byte_3</option>
+            <option value="byte_4">byte_4</option>
+            <option value="byte_5">byte_5</option>
+            <option value="byte_6">byte_6</option>
+            <option value="byte_7">byte_7</option>
+          </optgroup>
+
+          <optgroup label="2-Byte Signals (Sensor Values)">
+            <option value="signal_0_1">bytes_0_1</option>
+            <option value="signal_2_3">bytes_2_3</option>
+            <option value="signal_4_5">bytes_4_5</option>
+            <option value="signal_6_7">bytes_6_7</option>
+          </optgroup>
+
+        </select>
+
+        <button class="primary-btn full" onclick="loadReport()">Run CAN Analysis</button>
+      </div>
+
+      <label>DBC File</label>
+        <select id="dbcSelect">
+        <option value="">No DBC (AI only)</option>
+        </select>
+
+      <div class="panel chart-panel">
+        <div class="panel-header">
+          <h3>Signal Graph</h3>
+          <span id="bestSignalLabel">Best Signal: --</span>
+        </div>
+
+        <canvas id="signalChart"></canvas>
+      </div>
+
+      <div class="panel report-panel">
+        <div class="panel-header">
+          <h3>AI CAN Report</h3>
+          <span>Byte + Signal Analysis</span>
+        </div>
+
+        <pre id="reportBox">Upload a CAN log and run analysis.</pre>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>CAN Frame Table</h3>
+          <span id="frameCount">No frames loaded</span>
+        </div>
+
+        <input id="tableSearch" type="text" placeholder="Search timestamp, CAN ID, or data..." onkeyup="filterTable()" />
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Line</th>
+                <th>Timestamp</th>
+                <th>CAN ID</th>
+                <th>DLC</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="frameTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/dbc.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/analyze.js"></script>
+  
+</body>
+</html>

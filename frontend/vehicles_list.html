@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>All Vehicles | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2>All Vehicles</h2>
+        <p>Search vehicles by VIN, plate, make, model, or year.</p>
+      </div>
+
+      <button class="ghost-btn" onclick="window.close()">Close</button>
+    </header>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h3>Vehicle List</h3>
+        <span>Saved Vehicles</span>
+      </div>
+
+      <input
+        id="vehicleSearchBox"
+        type="text"
+        placeholder="Search VIN, plate, make, model, year..."
+        onkeyup="renderAllVehicles()"
+      />
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Make</th>
+              <th>Model</th>
+              <th>Year</th>
+              <th>Color</th>
+              <th>VIN</th>
+              <th>Plate</th>
+              <th>ECU</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="vehicleList"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/vehicles_list.js"></script>
+</body>
+</html>

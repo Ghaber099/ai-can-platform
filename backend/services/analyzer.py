@@ -6,6 +6,9 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
+
+
+
 def get_file_path(filename: str) -> Path:
     return UPLOAD_DIR / filename
 
@@ -394,6 +397,16 @@ def signal_data(filename: str, can_id: str):
             "can_id": frame["can_id"],
             "dlc": frame["dlc"],
             "data": frame["data"],
+
+            "byte_0": int(frame["data"][0], 16),
+            "byte_1": int(frame["data"][1], 16),
+            "byte_2": int(frame["data"][2], 16),
+            "byte_3": int(frame["data"][3], 16),
+            "byte_4": int(frame["data"][4], 16),
+            "byte_5": int(frame["data"][5], 16),
+            "byte_6": int(frame["data"][6], 16),
+            "byte_7": int(frame["data"][7], 16),
+
             "signal_0_1": signals["signal_0_1"],
             "signal_2_3": signals["signal_2_3"],
             "signal_4_5": signals["signal_4_5"],
