@@ -1,0 +1,101 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 30px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+}
+
+h1, h2, h3 {
+    color: #1f2937;
+}
+
+button {
+    padding: 8px 16px;
+    cursor: pointer;
+}
+
+select, input {
+    padding: 7px;
+    margin: 6px;
+}
+
+#status {
+    font-weight: bold;
+    color: #2563eb;
+}
+
+pre {
+    background: #111827;
+    color: #e5e7eb;
+    padding: 20px;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 10px;
+    background: white;
+}
+
+th {
+    background: #1f2937;
+    color: white;
+    padding: 10px;
+    text-align: left;
+}
+
+td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    font-family: monospace;
+}
+
+tr:hover {
+    background: #f1f5f9;
+}
+
+.byte {
+    padding: 3px 5px;
+    border-radius: 4px;
+    margin-right: 3px;
+    display: inline-block;
+}
+
+.byte-0,
+.byte-1 {
+    background: #dbeafe;
+}
+
+.byte-2,
+.byte-3 {
+    background: #dcfce7;
+}
+
+.byte-4,
+.byte-5 {
+    background: #fef3c7;
+}
+
+.byte-6,
+.byte-7 {
+    background: #fee2e2;
+}
+
+.byte-changing {
+    border: 2px solid #2563eb;
+    font-weight: bold;
+}
+
+.byte-constant {
+    opacity: 0.55;
+}
