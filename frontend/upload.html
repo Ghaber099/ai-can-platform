@@ -18,6 +18,11 @@
     <input type="text" id="year" placeholder="Year">
     <input type="text" id="color" placeholder="Color">
 
+    <h3>Upload DBC File</h3>
+    <input type="file" id="dbcFileInput" accept=".dbc,.txt">
+    <button onclick="uploadDbcFile()">Upload DBC</button>
+    <p id="dbcStatus">No DBC uploaded yet.</p>
+
     <h3>Upload CAN Log</h3>
     <input type="file" id="fileInput">
     <button onclick="uploadFile()">Upload</button>
@@ -30,6 +35,11 @@
     <h3>Select CAN ID</h3>
     <select id="canSelect"></select>
     <button onclick="loadReport()">Analyze</button>
+
+    <h3>Select DBC File</h3>
+    <select id="dbcSelect">
+        <option value="">No DBC (AI only)</option>
+    </select>
 
     <h3>Select Signal</h3>
     <select id="signalSelect" multiple size="4">
@@ -127,6 +137,7 @@ async function uploadFile() {
         }
 
         await loadCanIds(currentFilename);
+        await loadDbcFiles();
     } catch (error) {
         document.getElementById("status").innerText = "Error: " + error.message;
     }
@@ -175,8 +186,22 @@ async function loadReport() {
         const reportText = await reportResponse.text();
         document.getElementById("reportBox").innerText = reportText;
 
-        const reportJsonRes = await fetch(`${API_BASE}/report/${currentFilename}/${canId}`);
+        const dbc = document.getElementById("dbcSelect").value;
+
+        const reportJsonRes = await fetch(
+            `${API_BASE}/report/${currentFilename}/${canId}?dbc=${dbc}`
+        );
         const reportJson = await reportJsonRes.json();
+        if (reportJson.dbc_signals && Object.keys(reportJson.dbc_signals).length > 0) {
+            let dbcText = "\n\n=== DBC DECODED SIGNALS ===\n";
+
+            for (const key in reportJson.dbc_signals) {
+                const values = reportJson.dbc_signals[key];
+                dbcText += `${key}: ${values.slice(0, 10).join(", ")}\n`;
+            }
+
+            document.getElementById("reportBox").innerText += dbcText;
+        }
 
         const anomalyMap = {};
         if (reportJson.signal16_report) {
@@ -424,6 +449,66 @@ function downloadChart() {
     link.download = "signal_graph.png";
     link.click();
 }
+
+async function loadDbcFiles() {
+    try {
+        const res = await fetch(`${API_BASE}/dbc/list`);
+        const data = await res.json();
+
+        const select = document.getElementById("dbcSelect");
+        select.innerHTML = `<option value="">No DBC (AI only)</option>`;
+
+        data.dbc_files.forEach(file => {
+            const option = document.createElement("option");
+            option.value = file;
+            option.textContent = file;
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error("DBC load error:", error);
+    }
+}
+
+async function uploadDbcFile() {
+    const dbcInput = document.getElementById("dbcFileInput");
+    const file = dbcInput.files[0];
+
+    if (!file) {
+        alert("Please select a DBC file");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    document.getElementById("dbcStatus").innerText = "Uploading DBC...";
+
+    try {
+        const response = await fetch(`${API_BASE}/dbc/upload`, {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+            throw new Error(result.error || "DBC upload failed");
+        }
+
+        document.getElementById("dbcStatus").innerText =
+            "DBC uploaded: " + result.filename;
+
+        await loadDbcFiles();
+
+    } catch (error) {
+        document.getElementById("dbcStatus").innerText =
+            "DBC Error: " + error.message;
+    }
+}
+
+
+
 </script>
 
 </body>

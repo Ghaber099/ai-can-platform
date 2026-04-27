@@ -25,14 +25,20 @@ def load_dbc(filename: str):
     if not file_path.exists():
         return None
 
-    return cantools.database.load_file(str(file_path))
+    try:
+        return cantools.database.load_file(str(file_path), database_format="dbc")
+    except Exception as error:
+        print("DBC load error:", error)
+        return None
 
 
 def list_dbc_files():
     return [
         file.name
         for file in DBC_DIR.iterdir()
-        if file.is_file() and file.suffix.lower() == ".dbc"
+        if file.is_file() and (
+            file.suffix.lower() == ".dbc" or file.name.lower().endswith(".dbc.txt")
+        )
     ]
 
 
