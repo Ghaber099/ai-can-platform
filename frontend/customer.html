@@ -12,7 +12,7 @@
     <header class="topbar">
       <div>
         <h2>Customer Profile Center</h2>
-        <p>Create a new customer or open an existing profile by driving license number.</p>
+        <p>Create a customer, search existing profiles, and manage linked vehicles.</p>
       </div>
 
       <div class="topbar-actions">
@@ -24,12 +24,16 @@
 
       <div class="panel">
         <div class="panel-header">
-          <h3>Find Existing Customer</h3>
-          <span>Search by License</span>
+          <h3>Find Customer</h3>
+          <span>Name / Phone / License</span>
         </div>
 
-        <label>Driving License Number</label>
-        <input id="searchLicense" type="text" placeholder="Search by name, phone, or driving license" />
+        <label>Search Customer</label>
+        <input
+          id="searchLicense"
+          type="text"
+          placeholder="Search by name, phone, or driving license"
+        />
 
         <button class="primary-btn full" onclick="findCustomer()">
           Open Customer Profile
@@ -38,10 +42,6 @@
         <button class="secondary-btn full" onclick="openAllCustomers()">
           All Customers
         </button>
-
-        <pre id="searchResult">No customer searched yet.</pre>
-        <h3>Linked Vehicles</h3>
-        <pre id="linkedVehicles">No vehicles loaded.</pre>
       </div>
 
       <div class="panel">
@@ -58,10 +58,10 @@
         </div>
 
         <label>Address</label>
-        <textarea id="custAddress" placeholder="Customer address"></textarea>
+        <textarea id="custAddress" class="full" placeholder="Customer address"></textarea>
 
         <label>Notes</label>
-        <textarea id="custNotes" placeholder="Notes about customer"></textarea>
+        <textarea id="custNotes" class="full" placeholder="Notes about customer"></textarea>
 
         <button class="primary-btn full" onclick="saveCustomer()">
           Save Customer
@@ -70,18 +70,36 @@
         <p id="custStatus">No customer saved yet.</p>
       </div>
 
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Search Result</h3>
+          <span>Matched customers</span>
+        </div>
+
+        <div id="searchResult" class="result-box">
+          No customer searched yet.
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Linked Vehicles</h3>
+          <span>Vehicles connected to selected customer</span>
+        </div>
+
+        <div id="linkedVehicles" class="result-box">
+          No vehicles loaded.
+        </div>
+      </div>
+
     </section>
   </main>
 
   <script src="js/customer.js"></script>
-
   <script>
-  function openAllCustomers() {
-    window.open("customers_list.html", "_blank", "width=1200,height=850");
-  }
+    function openAllCustomers() {
+      window.open("customers_list.html", "_blank", "width=1200,height=850");
+    }
   </script>
-
-
-
 </body>
 </html>

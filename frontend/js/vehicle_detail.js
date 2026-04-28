@@ -172,6 +172,13 @@ async function loadRepairs(vehicleId) {
     renderRepairs(repairs);
     updateRepairStats(repairs);
 
+    const insightsBox = document.getElementById("vehicleInsights");
+
+    if (insightsBox) {
+      const insights = generateInsights(null, repairs);
+      insightsBox.innerText = insights;
+    }
+
   } catch (error) {
     renderRepairs([]);
     updateRepairStats([]);
@@ -217,7 +224,45 @@ function updateRepairStats(repairs) {
     lastRepair?.date || "--";
 }
 
+function generateInsights(vehicle, repairs) {
+  if (!repairs || repairs.length === 0) {
+    return "No repair history yet. Vehicle looks clean.";
+  }
 
+  let insights = [];
+
+  // total repairs
+  if (repairs.length > 3) {
+    insights.push("⚠️ High number of repairs detected.");
+  }
+
+  // mileage trend
+  const mileages = repairs
+    .map(r => parseInt(r.mileage || 0))
+    .filter(m => m > 0);
+
+  if (mileages.length >= 2) {
+    const diff = mileages[mileages.length - 1] - mileages[0];
+
+    if (diff > 50000) {
+      insights.push("🚗 High usage vehicle.");
+    }
+  }
+
+  // repeated repair titles
+  const titles = repairs.map(r => r.title?.toLowerCase());
+  const duplicates = titles.filter((t, i) => titles.indexOf(t) !== i);
+
+  if (duplicates.length > 0) {
+    insights.push("🔁 Repeated issue detected: " + duplicates[0]);
+  }
+
+  if (insights.length === 0) {
+    return "✅ Vehicle condition looks normal.";
+  }
+
+  return insights.join("\n");
+}
 
 
 document.addEventListener("DOMContentLoaded", loadVehicleDetail);
