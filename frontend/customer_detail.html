@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Customer History | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2 id="customerTitle">Customer History</h2>
+        <p id="customerSubtitle">Customer info, linked vehicles, and visit history.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="primary-btn" onclick="addVehicleForCustomer()">Add Vehicle</button>
+        <button class="ghost-btn" onclick="window.close()">Close</button>
+      </div>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span>Linked Vehicles</span>
+        <strong id="linkedVehicleCount">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Total Visits</span>
+        <strong id="totalVisits">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Phone</span>
+        <strong id="customerPhone">--</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>License</span>
+        <strong id="customerLicense">--</strong>
+      </div>
+    </section>
+
+    <section class="dashboard-grid">
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Customer Information</h3>
+          <span>Profile</span>
+        </div>
+
+        <div id="customerInfoBox" class="customer-info-grid">
+            Loading customer...
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Linked Vehicles</h3>
+          <span>Cars connected to this customer</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Year</th>
+                <th>VIN</th>
+                <th>Plate</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="customerVehiclesTable">
+              <tr>
+                <td colspan="6">Loading vehicles...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <div class="panel-header">
+          <h3>Customer History</h3>
+          <span>Ownership timeline + repair visits</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Vehicle</th>
+                <th>Type</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="customerHistoryTable">
+              <tr>
+                <td colspan="4">Loading customer history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/customer_detail.js"></script>
+</body>
+</html>

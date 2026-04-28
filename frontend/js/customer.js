@@ -6,53 +6,73 @@ function saveCustomers(customers) {
   localStorage.setItem("customers", JSON.stringify(customers));
 }
 
-function saveCustomer() {
-  const customer = {
+async function saveCustomer() {
+  const data = {
     name: document.getElementById("custName").value.trim(),
     phone: document.getElementById("custPhone").value.trim(),
     email: document.getElementById("custEmail").value.trim(),
     license: document.getElementById("custLicense").value.trim(),
     address: document.getElementById("custAddress").value.trim(),
-    notes: document.getElementById("custNotes").value.trim(),
-    createdAt: new Date().toISOString()
+    notes: document.getElementById("custNotes").value.trim()
   };
 
-  if (!customer.name || !customer.license) {
+  if (!data.name || !data.license) {
     alert("Name and Driving License Number are required.");
     return;
   }
 
-  const customers = getCustomers();
-  customers[customer.license] = customer;
-  saveCustomers(customers);
+  try {
+    const res = await fetch("http://127.0.0.1:8000/customer/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
 
-  document.getElementById("custStatus").innerText =
-    "Customer saved: " + customer.name;
+    const result = await res.json();
+
+    if (!res.ok || result.error) {
+      throw new Error(result.error || "Save failed");
+    }
+
+    document.getElementById("custStatus").innerText =
+      "Customer saved successfully: " + data.name;
+
+  } catch (error) {
+    document.getElementById("custStatus").innerText =
+      "Error: " + error.message;
+  }
 }
 
-function findCustomer() {
-  const license = document.getElementById("searchLicense").value.trim();
+async function findCustomer() {
+  const query = document.getElementById("searchLicense").value.trim();
 
-  if (!license) {
-    alert("Enter driving license number.");
+  if (!query) {
+    alert("Enter name, phone, or driving license.");
     return;
   }
 
-  const customers = getCustomers();
-  const customer = customers[license];
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:8000/customers/search?q=${encodeURIComponent(query)}`
+    );
 
-  if (!customer) {
+    const data = await res.json();
+
+    if (!res.ok || !data.customers || data.customers.length === 0) {
+      document.getElementById("searchResult").innerText =
+        "No customer found.";
+      return;
+    }
+
     document.getElementById("searchResult").innerText =
-      "No customer found for this license number.";
-    document.getElementById("linkedVehicles").innerText =
-      "No vehicles loaded.";
-    return;
+      JSON.stringify(data.customers, null, 2);
+
+  } catch (error) {
+    document.getElementById("searchResult").innerText =
+      "Error: " + error.message;
   }
-
-  document.getElementById("searchResult").innerText =
-    JSON.stringify(customer, null, 2);
-
-  showLinkedVehicles(license);
 }
 
 function showLinkedVehicles(license) {

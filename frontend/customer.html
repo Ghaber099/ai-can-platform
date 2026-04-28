@@ -29,10 +29,14 @@
         </div>
 
         <label>Driving License Number</label>
-        <input id="searchLicense" type="text" placeholder="Enter driving license number" />
+        <input id="searchLicense" type="text" placeholder="Search by name, phone, or driving license" />
 
         <button class="primary-btn full" onclick="findCustomer()">
           Open Customer Profile
+        </button>
+
+        <button class="secondary-btn full" onclick="openAllCustomers()">
+          All Customers
         </button>
 
         <pre id="searchResult">No customer searched yet.</pre>
@@ -70,5 +74,14 @@
   </main>
 
   <script src="js/customer.js"></script>
+
+  <script>
+  function openAllCustomers() {
+    window.open("customers_list.html", "_blank", "width=1200,height=850");
+  }
+  </script>
+
+
+
 </body>
 </html>

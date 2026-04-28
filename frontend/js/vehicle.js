@@ -1,12 +1,20 @@
-function getVehicles() {
-  return JSON.parse(localStorage.getItem("vehicles") || "{}");
-}
+const API_BASE = "http://127.0.0.1:8000";
 
-function saveVehicles(data) {
-  localStorage.setItem("vehicles", JSON.stringify(data));
-}
+document.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+  const customerLicense = params.get("customer");
 
-function saveVehicle() {
+  if (customerLicense) {
+    const input = document.getElementById("ownerLicense");
+
+    if (input) {
+      input.value = customerLicense;
+      input.readOnly = true;
+    }
+  }
+});
+
+async function saveVehicle() {
   const vehicle = {
     ownerLicense: document.getElementById("ownerLicense").value.trim(),
     vin: document.getElementById("vin").value.trim(),
@@ -17,9 +25,7 @@ function saveVehicle() {
     color: document.getElementById("color").value.trim(),
     ecu: document.getElementById("ecu").value.trim(),
     engine: document.getElementById("engine").value.trim(),
-    notes: document.getElementById("vehicleNotes").value.trim(),
-    createdAt: new Date().toISOString()
-    
+    notes: document.getElementById("vehicleNotes").value.trim()
   };
 
   if (!vehicle.vin && !vehicle.plate) {
@@ -27,105 +33,97 @@ function saveVehicle() {
     return;
   }
 
-  const vehicles = getVehicles();
-  const key = vehicle.vin || vehicle.plate;
+  try {
+    const res = await fetch(`${API_BASE}/vehicle/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(vehicle)
+    });
 
-  vehicles[key] = vehicle;
-  saveVehicles(vehicles);
+    const result = await res.json();
 
-  document.getElementById("vehicleStatus").innerText =
-    "Vehicle saved: " + (vehicle.vin || vehicle.plate);
+    if (!res.ok || result.error) {
+      throw new Error(result.error || "Save failed");
+    }
+
+    if (vehicle.ownerLicense) {
+      const linkRes = await fetch(`${API_BASE}/customer-vehicle/link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          customer_license: vehicle.ownerLicense,
+          vehicle_id: result.vehicle_id,
+          relationship_type: "owner"
+        })
+      });
+
+      const linkResult = await linkRes.json();
+
+      if (!linkRes.ok || linkResult.error) {
+        throw new Error(linkResult.error || "Vehicle saved but customer link failed");
+      }
+    }
+
+    document.getElementById("vehicleStatus").innerText =
+      "Vehicle saved and linked successfully. ID: " + result.vehicle_id;
+
+  } catch (error) {
+    document.getElementById("vehicleStatus").innerText =
+      "Error: " + error.message;
+  }
 }
 
-function findVehicle() {
-  const key = document.getElementById("searchVin").value.trim();
+async function findVehicle() {
+  const query = document.getElementById("searchVin").value.trim();
 
-  if (!key) {
-    alert("Enter VIN or Plate");
+  if (!query) {
+    alert("Enter VIN, plate, make, model, or year");
     return;
   }
 
-  const vehicles = getVehicles();
+  try {
+    const res = await fetch(
+      `${API_BASE}/vehicles/search?q=${encodeURIComponent(query)}`
+    );
 
-  const vehicle = Object.values(vehicles).find(v =>
-    v.vin === key || v.plate === key
-  );
+    const data = await res.json();
+    const box = document.getElementById("vehicleSearchResult");
 
-  const box = document.getElementById("vehicleSearchResult");
+    if (!data.vehicles || data.vehicles.length === 0) {
+      box.innerHTML = "Vehicle not found.";
+      return;
+    }
 
-  if (!vehicle) {
-    box.innerHTML = "Vehicle not found.";
-    return;
+    const vehicle = data.vehicles[0];
+
+    box.innerHTML = `
+      <div class="vehicle-result-card" onclick="openVehicleDetail('${vehicle.id}')">
+        <h3>${vehicle.make || "Unknown"} ${vehicle.model || ""}</h3>
+        <p>Year: ${vehicle.year || "-"}</p>
+        <p>VIN: ${vehicle.vin || "-"}</p>
+        <p>Plate: ${vehicle.plate || "-"}</p>
+        <small>Click to open full history</small>
+      </div>
+    `;
+
+  } catch (error) {
+    document.getElementById("vehicleSearchResult").innerText =
+      "Error: " + error.message;
   }
-
-  const vehicleKey = vehicle.vin || vehicle.plate;
-
-  box.innerHTML = `
-    <div class="vehicle-result-card" onclick="openVehicleDetail('${vehicleKey}')">
-      <h3>${vehicle.make || "Unknown"} ${vehicle.model || "Unknown"}</h3>
-      <p>VIN: ${vehicle.vin || "N/A"}</p>
-      <p>Plate: ${vehicle.plate || "N/A"}</p>
-      <small>Click to open full history</small>
-    </div>
-  `;
 }
 
-
-function openVehicleDetail(vehicleKey) {
+function openVehicleDetail(vehicleId) {
   window.open(
-    `vehicle_detail.html?vehicle=${encodeURIComponent(vehicleKey)}`,
+    `vehicle_detail.html?vehicle=${encodeURIComponent(vehicleId)}`,
     "_blank",
     "width=1200,height=850"
   );
 }
 
-
-function renderVehicleList() {
-  const vehicles = getVehicles();
-  const listBox = document.getElementById("vehicleList");
-  const search = document.getElementById("vehicleSearchBox").value.toLowerCase();
-
-  const vehicleArray = Object.values(vehicles);
-
-  if (vehicleArray.length === 0) {
-    listBox.innerHTML = "No vehicles saved yet.";
-    return;
-  }
-
-  const filtered = vehicleArray.filter(v => {
-    return (
-      (v.vin && v.vin.toLowerCase().includes(search)) ||
-      (v.plate && v.plate.toLowerCase().includes(search)) ||
-      (v.make && v.make.toLowerCase().includes(search)) ||
-      (v.model && v.model.toLowerCase().includes(search)) ||
-      (v.year && v.year.toLowerCase().includes(search))
-    );
-  });
-
-  if (filtered.length === 0) {
-    listBox.innerHTML = "No matching vehicles found.";
-    return;
-  }
-
-  listBox.innerHTML = "";
-
-  filtered.forEach(vehicle => {
-    const key = vehicle.vin || vehicle.plate;
-
-    const card = document.createElement("div");
-    card.className = "vehicle-result-card";
-
-    card.innerHTML = `
-      <h3>${vehicle.make || "Unknown"} ${vehicle.model || ""}</h3>
-      <p>Year: ${vehicle.year || "-"}</p>
-      <p>VIN: ${vehicle.vin || "-"}</p>
-      <p>Plate: ${vehicle.plate || "-"}</p>
-    `;
-
-    card.onclick = () => openVehicleDetail(key);
-
-    listBox.appendChild(card);
-  });
+function openAllVehicles() {
+  window.open("vehicles_list.html", "_blank", "width=1200,height=850");
 }
-
-document.addEventListener("DOMContentLoaded", renderVehicleList);

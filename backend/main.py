@@ -1,10 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from database import init_db
+
 from routes import upload
 from routes import analyze
 from routes import vehicle
 from routes import dbc
+from routes import customer
+from routes import vehicles
+from routes import repairs
+from routes import owners
 
 
 app = FastAPI(
@@ -12,6 +18,12 @@ app = FastAPI(
     description="AI-powered CAN log analysis and DBC decoding platform",
     version="1.0.0",
 )
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +38,10 @@ app.include_router(upload.router)
 app.include_router(analyze.router)
 app.include_router(vehicle.router)
 app.include_router(dbc.router)
+app.include_router(customer.router)
+app.include_router(vehicles.router)
+app.include_router(repairs.router)
+app.include_router(owners.router)
 
 
 @app.get("/")

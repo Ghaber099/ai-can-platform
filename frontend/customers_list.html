@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>All Customers | AI CAN Platform</title>
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <h2>All Customers</h2>
+        <p>Search customers by name, phone, or license.</p>
+      </div>
+
+      <button class="ghost-btn" onclick="window.close()">Close</button>
+    </header>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h3>Customer List</h3>
+        <span>Database Records</span>
+      </div>
+
+      <input
+        id="customerSearchBox"
+        type="text"
+        placeholder="Search name, phone, license..."
+        onkeyup="renderCustomers()"
+      />
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>License</th>
+              <th>Address</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="customerTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/customers_list.js"></script>
+</body>
+</html>

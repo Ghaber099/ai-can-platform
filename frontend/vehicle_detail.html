@@ -40,38 +40,30 @@
     </section>
 
     <section class="dashboard-grid">
-
-      <div class="panel">
+      <div class="panel table-panel">
         <div class="panel-header">
           <h3>Vehicle Information</h3>
           <span>Identity</span>
         </div>
-        <pre id="vehicleInfoBox">Loading vehicle...</pre>
-      </div>
 
-      <div class="panel">
-        <div class="panel-header">
-          <h3>Add Owner</h3>
-          <span>Customer Link</span>
+        <div id="vehicleInfoBox" class="vehicle-info-grid">
+          Loading vehicle...
         </div>
-
-        <input id="ownerName" type="text" placeholder="Owner Name" />
-        <input id="ownerLicense" type="text" placeholder="Driving License Number" />
-        <input id="ownerPhone" type="text" placeholder="Phone Number" />
-
-        <button class="primary-btn full" onclick="addOwner()">Add Owner</button>
       </div>
 
-      <div class="panel">
+      <div class="panel table-panel">
         <div class="panel-header">
           <h3>Add Repair Visit</h3>
           <span>Service History</span>
         </div>
 
-        <input id="repairDate" type="date" />
-        <input id="repairMileage" type="number" placeholder="Mileage / Odometer" />
-        <input id="repairTitle" type="text" placeholder="Repair Title e.g. CAN scan" />
-        <textarea id="repairWork" placeholder="What work was done?"></textarea>
+        <div class="form-grid">
+          <input id="repairDate" type="date" />
+          <input id="repairMileage" type="number" placeholder="Mileage / Odometer" />
+          <input id="repairTitle" type="text" placeholder="Repair Title e.g. CAN scan" />
+        </div>
+
+        <textarea id="repairWork" class="full" placeholder="What work was done?"></textarea>
 
         <button class="primary-btn full" onclick="addRepair()">Add Repair Record</button>
       </div>
@@ -90,9 +82,14 @@
                 <th>Name</th>
                 <th>License</th>
                 <th>Phone</th>
+                <th>Action</th>
               </tr>
             </thead>
-            <tbody id="ownersTable"></tbody>
+            <tbody id="ownersTable">
+              <tr>
+                <td colspan="5">Loading owners...</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -113,11 +110,14 @@
                 <th>Work Done</th>
               </tr>
             </thead>
-            <tbody id="repairsTable"></tbody>
+            <tbody id="repairsTable">
+              <tr>
+                <td colspan="4">Loading repairs...</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
-
     </section>
   </main>
 

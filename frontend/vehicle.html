@@ -11,7 +11,7 @@
     <header class="topbar">
       <div>
         <h2>Vehicle Profile Center</h2>
-        <p>Create or search vehicle using VIN / Plate.</p>
+        <p>Create or search vehicle using VIN, plate, make, model, or year.</p>
       </div>
 
       <button class="ghost-btn" onclick="window.close()">Close</button>
@@ -19,14 +19,13 @@
 
     <section class="dashboard-grid">
 
-      <!-- SEARCH VEHICLE -->
       <div class="panel">
         <div class="panel-header">
           <h3>Find Vehicle</h3>
-          <span>Search by VIN / Plate</span>
+          <span>Search Vehicle</span>
         </div>
 
-        <input id="searchVin" type="text" placeholder="Enter VIN or Plate Number" />
+        <input id="searchVin" type="text" placeholder="Search VIN, plate, make, model, or year" />
 
         <button class="primary-btn full" onclick="findVehicle()">
           Open Vehicle Profile
@@ -41,7 +40,6 @@
         </div>
       </div>
 
-      <!-- NEW VEHICLE -->
       <div class="panel">
         <div class="panel-header">
           <h3>New Vehicle</h3>
@@ -49,9 +47,9 @@
         </div>
 
         <div class="form-grid">
+          <input id="ownerLicense" type="text" placeholder="Customer Driving License Number" />
           <input id="vin" type="text" placeholder="VIN Number" />
           <input id="plate" type="text" placeholder="Plate Number" />
-          <input id="ownerLicense" type="text" placeholder="Customer Driving License Number" />
           <input id="make" type="text" placeholder="Make" />
           <input id="model" type="text" placeholder="Model" />
           <input id="year" type="text" placeholder="Year" />
@@ -73,10 +71,5 @@
   </main>
 
   <script src="js/vehicle.js"></script>
-  <script>
-  function openAllVehicles() {
-    window.open("vehicles_list.html", "_blank", "width=1200,height=850");
-  }
-  </script>
 </body>
 </html>
