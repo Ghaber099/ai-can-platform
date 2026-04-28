@@ -1,106 +1,69 @@
 async function uploadFile() {
   const fileInput = document.getElementById("fileInput");
-  const file = fileInput.files[0];
+  const status = document.getElementById("status");
 
-  if (!file) {
-    alert("Please select a CAN log file");
+  if (!fileInput || !fileInput.files.length) {
+    alert("Please choose a CAN log file first.");
     return;
   }
 
-  const make = "Unknown";
-  const model = "Unknown";
-  const year = "Unknown";
-  const color = "Unknown";
-
   const formData = new FormData();
-  formData.append("file", file);
-  formData.append("make", make);
-  formData.append("model", model);
-  formData.append("year", year);
-  formData.append("color", color);
-
-  const status = document.getElementById("status");
-
-  resetUI();
+  formData.append("file", fileInput.files[0]);
 
   try {
     status.innerText = "Uploading CAN log...";
 
-    const response = await fetch(`${API_BASE}/upload`, {
+    const res = await fetch(`${API_BASE}/upload`, {
       method: "POST",
       body: formData
     });
 
-    const result = await response.json();
+    const result = await res.json();
 
-    if (!response.ok || result.error) {
+    if (!res.ok || result.error) {
       throw new Error(result.error || "Upload failed");
     }
 
-    currentFilename = result.filename;
+    window.uploadedFilename = result.filename;
+    status.innerText = "Uploaded: " + result.filename;
 
-    status.innerText = "Uploaded: " + currentFilename;
-
-    const vehicleInfo = document.getElementById("vehicleInfo");
-
-    if (vehicleInfo) {
-      vehicleInfo.innerText = `Vehicle: ${make} ${model} (${year}) - ${color}`;
-    }
-
-    await loadCanIds(currentFilename);
-    await loadDbcFiles();
+    await loadCanIds(result.filename);
 
   } catch (error) {
     status.innerText = "Error: " + error.message;
-    document.getElementById("reportBox").innerText = "Upload Error: " + error.message;
   }
 }
-
-
-function resetUI() {
-  currentFilename = "";
-  allFrames = [];
-  currentBestSignal = null;
-
-  document.getElementById("reportBox").innerText = "";
-  document.getElementById("frameTableBody").innerHTML = "";
-  document.getElementById("frameCount").innerText = "No frames loaded";
-  document.getElementById("bestSignalLabel").innerText = "Best Signal: --";
-
-  const vehicleInfo = document.getElementById("vehicleInfo");
-
-  if (vehicleInfo) {
-    vehicleInfo.innerText = "Vehicle: Unknown";
-  }
-
-  const canSelect = document.getElementById("canSelect");
-  canSelect.innerHTML = `<option value="">Upload CAN log first</option>`;
-}
-
 
 async function loadCanIds(filename) {
-  const select = document.getElementById("canSelect");
-
   try {
-    const response = await fetch(`${API_BASE}/can-ids/${filename}`);
-    const data = await response.json();
+    const res = await fetch(`${API_BASE}/can-ids/${encodeURIComponent(filename)}`);
+    const data = await res.json();
 
-    select.innerHTML = "";
+    const canIds = data.can_ids || data.canIds || [];
 
-    if (!data.can_ids || data.can_ids.length === 0) {
-      select.innerHTML = `<option value="">No CAN IDs found</option>`;
-      return;
+    document.getElementById("statCanIds").innerText = canIds.length;
+
+    if (typeof renderCanIdCheckList === "function") {
+      renderCanIdCheckList(canIds);
     }
 
-    data.can_ids.forEach(id => {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = id;
-      select.appendChild(option);
-    });
+    const canSelect = document.getElementById("canSelect");
+    if (canSelect) {
+      canSelect.innerHTML = "";
+
+      if (!canIds.length) {
+        canSelect.innerHTML = `<option value="">No CAN IDs found</option>`;
+      } else {
+        canIds.forEach(id => {
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = id;
+          canSelect.appendChild(option);
+        });
+      }
+    }
 
   } catch (error) {
-    select.innerHTML = `<option value="">Error loading CAN IDs</option>`;
-    console.error(error);
+    console.error("CAN ID load error:", error);
   }
 }

@@ -173,8 +173,7 @@ async function loadReport() {
     }
 
     const canId = document.getElementById("canSelect").value;
-    const selectedOptions = Array.from(document.getElementById("signalSelect").selectedOptions);
-    let selectedSignals = selectedOptions.map(option => option.value);
+    const dbc = document.getElementById("dbcSelect").value;
 
     if (!canId) {
         alert("Please select a CAN ID");
@@ -182,16 +181,31 @@ async function loadReport() {
     }
 
     try {
+        // 🔹 1. TEXT REPORT
         const reportResponse = await fetch(`${API_BASE}/report-text/${currentFilename}/${canId}`);
         const reportText = await reportResponse.text();
         document.getElementById("reportBox").innerText = reportText;
 
-        const dbc = document.getElementById("dbcSelect").value;
-
+        // 🔹 2. JSON REPORT (with DBC)
         const reportJsonRes = await fetch(
             `${API_BASE}/report/${currentFilename}/${canId}?dbc=${dbc}`
         );
         const reportJson = await reportJsonRes.json();
+
+        // 🔹 3. LOAD FRAMES (IMPORTANT FIX)
+        const signalResponse = await fetch(`${API_BASE}/signal-data/${currentFilename}/${canId}`);
+        const signalData = await signalResponse.json();
+
+        if (!signalData.frames || signalData.frames.length === 0) {
+            allFrames = [];
+            renderTable([]);
+            document.getElementById("frameCount").innerText = "No frames found";
+        } else {
+            allFrames = signalData.frames;
+            renderTable(allFrames);
+        }
+
+        // 🔹 4. DBC DISPLAY
         if (reportJson.dbc_signals && Object.keys(reportJson.dbc_signals).length > 0) {
             let dbcText = "\n\n=== DBC DECODED SIGNALS ===\n";
 
@@ -203,79 +217,24 @@ async function loadReport() {
             document.getElementById("reportBox").innerText += dbcText;
         }
 
-        const anomalyMap = {};
-        if (reportJson.signal16_report) {
-            reportJson.signal16_report.forEach(signal => {
-                anomalyMap[signal.signal] = signal.anomalies || [];
-            });
-        }
-
-        currentBestSignal = null;
-        let correlatedSignal = null;
-
+        // 🔹 5. BEST SIGNAL
         if (reportJson.signal16_report && reportJson.signal16_report.length > 0) {
             currentBestSignal = reportJson.signal16_report[0].signal;
 
-            if (reportJson.correlations && reportJson.correlations.length > 0) {
-                const bestCorrelation = reportJson.correlations
-                    .filter(correlation => correlation.pair.includes(currentBestSignal))
-                    .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))[0];
-
-                if (bestCorrelation && Math.abs(bestCorrelation.correlation) > 0.5) {
-                    const parts = bestCorrelation.pair.split(" ↔ ");
-                    correlatedSignal = parts[0] === currentBestSignal ? parts[1] : parts[0];
-                }
-            }
-
             document.getElementById("bestSignalLabel").innerText =
-                "Best Signal: " + currentBestSignal +
-                (correlatedSignal ? " | Correlated: " + correlatedSignal + " 🔗" : "") +
-                " ⭐";
+                "Best Signal: " + currentBestSignal + " ⭐";
         }
 
-        const signalResponse = await fetch(`${API_BASE}/signal-data/${currentFilename}/${canId}`);
-        const signalData = await signalResponse.json();
+        // 🔹 6. GRAPH
+        if (allFrames.length > 0 && currentBestSignal) {
+            const dataset = [{
+                name: currentBestSignal,
+                values: allFrames.map(frame => frame[currentBestSignal])
+            }];
 
-        if (!signalData.frames || signalData.frames.length === 0) {
-            allFrames = [];
-            renderTable([]);
-            drawChartMulti([], currentBestSignal, anomalyMap);
-            return;
+            drawChartMulti(dataset, currentBestSignal, {});
         }
 
-        allFrames = signalData.frames;
-        renderTable(allFrames);
-
-        let graphSignals = [];
-
-        if (currentBestSignal) {
-            graphSignals.push(currentBestSignal);
-        }
-
-        if (correlatedSignal && !graphSignals.includes(correlatedSignal)) {
-            graphSignals.push(correlatedSignal);
-        }
-
-        selectedSignals.forEach(signal => {
-            if (!graphSignals.includes(signal)) {
-                graphSignals.push(signal);
-            }
-        });
-
-        if (graphSignals.length === 0) {
-            graphSignals = ["signal_0_1"];
-        }
-
-        selectSignalsInDropdown(graphSignals);
-
-        const datasets = graphSignals.map(signal => {
-            return {
-                name: signal,
-                values: allFrames.map(frame => frame[signal])
-            };
-        });
-
-        drawChartMulti(datasets, currentBestSignal, anomalyMap);
     } catch (error) {
         document.getElementById("reportBox").innerText = "Error: " + error.message;
     }
@@ -507,6 +466,28 @@ async function uploadDbcFile() {
     }
 }
 
+
+function renderTable(frames) {
+    const tableBody = document.getElementById("frameTableBody");
+    tableBody.innerHTML = "";
+
+    document.getElementById("frameCount").innerText =
+        `Showing first ${Math.min(frames.length, 50)} of ${frames.length} frames`;
+
+    frames.slice(0, 50).forEach(frame => {
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+            <td>${frame.frame_index}</td>
+            <td>${frame.timestamp}</td>
+            <td>${frame.can_id}</td>
+            <td>${frame.dlc}</td>
+            <td>${frame.data.join(" ")}</td>
+        `;
+
+        tableBody.appendChild(row);
+    });
+}
 
 
 </script>

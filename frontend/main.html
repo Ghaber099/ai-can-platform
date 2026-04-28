@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI CAN Platform Dashboard</title>
+
+  <title>AutoScope AI | Business Intelligence Dashboard</title>
 
   <link rel="stylesheet" href="css/dashboard.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,19 +13,23 @@
 <body>
   <div class="app-shell">
 
+    <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">⚡</div>
         <div>
-          <h1>AI CAN</h1>
-          <p>Automotive Intelligence</p>
+          <h1>AutoScope AI</h1>
+          <p>Garage Intelligence</p>
         </div>
       </div>
 
       <nav class="nav-menu">
-        <a class="nav-item active" href="#">Dashboard</a>
+        <a class="nav-item active" href="main.html">Dashboard</a>
         <a class="nav-item" href="analyzer.html">CAN Analyzer</a>
-        <a class="nav-item" href="#">DBC Decoder</a>
+        <a class="nav-item" href="customer.html">Customers</a>
+        <a class="nav-item" href="vehicle.html">Vehicles</a>
+        <a class="nav-item" href="customers_list.html">Customer List</a>
+        <a class="nav-item" href="vehicles_list.html">Vehicle List</a>
         <a class="nav-item" href="#">Reports</a>
         <a class="nav-item" href="#">Settings</a>
       </nav>
@@ -35,161 +40,259 @@
       </div>
     </aside>
 
+    <!-- MAIN -->
     <main class="main-content">
 
+      <!-- TOPBAR -->
       <header class="topbar">
         <div>
-          <h2>AI CAN Analysis Dashboard</h2>
-          <p>Upload logs, decode DBC files, analyze signals, and detect anomalies.</p>
+          <h2>Business Command Dashboard</h2>
+          <p>Customers, vehicles, repairs, CAN diagnostics, revenue, expenses, and profit overview.</p>
         </div>
 
         <div class="topbar-actions">
-          <button class="ghost-btn">Export</button>
-          <button class="secondary-btn" onclick="openCustomerWindow()">Customer Profile</button>
-          <button class="secondary-btn" onclick="openVehicleWindow()">Vehicle Profile</button>
-          <button class="primary-btn">New Analysis</button>
+          <button class="ghost-btn" onclick="location.href='customers_list.html'">Customers</button>
+          <button class="ghost-btn" onclick="location.href='vehicles_list.html'">Vehicles</button>
+          <button class="primary-btn" onclick="location.href='analyzer.html'">New CAN Analysis</button>
         </div>
       </header>
 
-      <section class="stats-grid">
-        <div class="stat-card">
-          <span>Total Frames</span>
-          <strong id="statFrames">--</strong>
+      <!-- SEARCH / QUICK ACTION -->
+      <section class="panel table-panel">
+        <div class="panel-header">
+          <h3>Global Search</h3>
+          <span>Find customer, vehicle, VIN, plate, or license</span>
         </div>
 
-        
-
-        <div class="stat-card">
-          <span>CAN IDs</span>
-          <strong id="statCanIds">--</strong>
+        <div class="dashboard-search-row">
+          <input
+            id="globalSearch"
+            type="text"
+            placeholder="Search customer, phone, license, VIN, plate, make, model..."
+          />
+          <button class="primary-btn" onclick="runGlobalSearch()">Search</button>
         </div>
 
-        <div class="stat-card">
-          <span>Best Signal</span>
-          <strong id="statBestSignal">--</strong>
-        </div>
-
-        <div class="stat-card danger">
-          <span>Anomalies</span>
-          <strong id="statAnomalies">--</strong>
+        <div id="globalSearchResult" class="result-box">
+          Search results will appear here.
         </div>
       </section>
 
+      <!-- STATS -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <span>Total Customers</span>
+          <strong id="dashCustomers">--</strong>
+          <small>Client database</small>
+        </div>
+
+        <div class="stat-card">
+          <span>Total Vehicles</span>
+          <strong id="dashVehicles">--</strong>
+          <small>Registered vehicles</small>
+        </div>
+
+        <div class="stat-card">
+          <span>Repair Visits</span>
+          <strong id="dashRepairs">--</strong>
+          <small>Service records</small>
+        </div>
+
+        <div class="stat-card danger">
+          <span>Open Alerts</span>
+          <strong id="dashAlerts">0</strong>
+          <small>Attention needed</small>
+        </div>
+      </section>
+
+      <!-- BUSINESS KPI -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <span>Monthly Sales</span>
+          <strong id="dashSales">$0</strong>
+          <small>Estimated revenue</small>
+        </div>
+
+        <div class="stat-card">
+          <span>Expenses</span>
+          <strong id="dashExpenses">$0</strong>
+          <small>Parts + operations</small>
+        </div>
+
+        <div class="stat-card">
+          <span>Profit</span>
+          <strong id="dashProfit">$0</strong>
+          <small>Sales minus expenses</small>
+        </div>
+
+        <div class="stat-card">
+          <span>Avg Repair Value</span>
+          <strong id="dashAvgRepair">$0</strong>
+          <small>Per service visit</small>
+        </div>
+      </section>
+
+      <!-- DASHBOARD GRID -->
       <section class="dashboard-grid">
 
-        
-
-        
-
+        <!-- QUICK WORKFLOW -->
         <div class="panel">
           <div class="panel-header">
-            <h3>Upload Center</h3>
-            <span>CAN + DBC Files</span>
+            <h3>Quick Workflow</h3>
+            <span>Daily operations</span>
           </div>
 
-          <div class="upload-box">
-            <label>CAN Log File</label>
-            <input id="fileInput" type="file" accept=".txt,.log,.csv,.asc" />
-            <button class="primary-btn" onclick="uploadFile()">Upload CAN Log</button>
-            <p id="status">No CAN log uploaded.</p>
-          </div>
+          <div class="quick-grid">
+            <button class="primary-btn full" onclick="location.href='customer.html'">
+              Create / Find Customer
+            </button>
 
-          <div class="upload-box">
-            <label>DBC File</label>
-            <input id="dbcFileInput" type="file" accept=".dbc,.txt" />
-            <button class="secondary-btn" onclick="uploadDbcFile()">Upload DBC</button>
-            <p id="dbcStatus">No DBC uploaded.</p>
+            <button class="secondary-btn full" onclick="location.href='vehicle.html'">
+              Create / Find Vehicle
+            </button>
+
+            <button class="secondary-btn full" onclick="location.href='analyzer.html'">
+              Run CAN Analyzer
+            </button>
+
+            <button class="ghost-btn full" onclick="location.href='vehicles_list.html'">
+              Vehicle Database
+            </button>
           </div>
         </div>
 
-        <div class="panel control-panel">
+        <!-- BUSINESS INSIGHTS -->
+        <div class="panel">
           <div class="panel-header">
-            <h3>Analysis Controls</h3>
-            <span>Select Inputs</span>
+            <h3>Business Intelligence</h3>
+            <span>Smart garage insight</span>
           </div>
 
-          <label>CAN ID</label>
-          <select id="canSelect">
-            <option value="">Upload CAN log first</option>
-          </select>
-
-          <label>DBC File</label>
-          <select id="dbcSelect">
-            <option value="">No DBC (AI only)</option>
-          </select>
-
-          <label>Signals</label>
-          <select id="signalSelect" multiple size="8">
-
-            <optgroup label="1-Byte Signals (Status / Counter)">
-              <option value="byte_0">byte_0</option>
-              <option value="byte_1">byte_1</option>
-              <option value="byte_2">byte_2</option>
-              <option value="byte_3">byte_3</option>
-              <option value="byte_4">byte_4</option>
-              <option value="byte_5">byte_5</option>
-              <option value="byte_6">byte_6</option>
-              <option value="byte_7">byte_7</option>
-            </optgroup>
-
-            <optgroup label="2-Byte Signals (Sensor Values)">
-              <option value="signal_0_1">bytes_0_1</option>
-              <option value="signal_2_3">bytes_2_3</option>
-              <option value="signal_4_5">bytes_4_5</option>
-              <option value="signal_6_7">bytes_6_7</option>
-            </optgroup>
-
-          </select>
-
-          <button class="primary-btn full" onclick="loadReport()">Run Analysis</button>
+          <div id="businessInsights" class="insight-list">
+            <p>Loading business intelligence...</p>
+          </div>
         </div>
 
+        <!-- SALES CHART -->
         <div class="panel chart-panel">
           <div class="panel-header">
-            <h3>Signal Graph</h3>
-            <span id="bestSignalLabel">Best Signal: --</span>
+            <h3>Sales / Profit Trend</h3>
+            <span>Monthly performance</span>
           </div>
 
-          <canvas id="signalChart"></canvas>
-
-          <div class="panel-actions">
-            <button class="ghost-btn" onclick="downloadChart()">Download Graph</button>
-          </div>
+          <canvas id="salesChart"></canvas>
         </div>
 
-        <div class="panel report-panel">
+        <!-- REPAIR CHART -->
+        <div class="panel chart-panel">
           <div class="panel-header">
-            <h3>Analysis Report</h3>
-            <span>AI + DBC Output</span>
+            <h3>Repair Visits</h3>
+            <span>Service activity</span>
           </div>
 
-          <pre id="reportBox">Upload a CAN log and run analysis.</pre>
+          <canvas id="repairChart"></canvas>
+        </div>
 
-          <div class="panel-actions">
-            <button class="ghost-btn" onclick="downloadReport()">Download Report</button>
+        <!-- CUSTOMER AREA MAP MOCK -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Customer Area Map</h3>
+            <span>Local market view</span>
+          </div>
+
+          <div class="map-card">
+            <div class="map-grid">
+              <span class="map-dot large" style="top: 34%; left: 42%;"></span>
+              <span class="map-dot" style="top: 55%; left: 63%;"></span>
+              <span class="map-dot" style="top: 43%; left: 72%;"></span>
+              <span class="map-dot" style="top: 66%; left: 35%;"></span>
+              <span class="map-dot" style="top: 27%; left: 58%;"></span>
+              <div class="map-label">Calgary Service Zone</div>
+            </div>
           </div>
         </div>
 
+        <!-- DIAGNOSTIC HEALTH -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Diagnostic Health</h3>
+            <span>CAN platform readiness</span>
+          </div>
+
+          <div class="health-bars">
+            <div>
+              <span>Customer System</span>
+              <div class="bar"><b style="width: 95%;"></b></div>
+            </div>
+
+            <div>
+              <span>Vehicle System</span>
+              <div class="bar"><b style="width: 90%;"></b></div>
+            </div>
+
+            <div>
+              <span>Repair History</span>
+              <div class="bar"><b style="width: 85%;"></b></div>
+            </div>
+
+            <div>
+              <span>CAN Analyzer</span>
+              <div class="bar"><b style="width: 70%;"></b></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT CUSTOMERS -->
         <div class="panel table-panel">
           <div class="panel-header">
-            <h3>CAN Frame Table</h3>
-            <span id="frameCount">No frames loaded</span>
+            <h3>Recent Customers</h3>
+            <span>Latest client records</span>
           </div>
-
-          <input id="tableSearch" type="text" placeholder="Search timestamp, CAN ID, or data..." onkeyup="filterTable()" />
 
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Line</th>
-                  <th>Timestamp</th>
-                  <th>CAN ID</th>
-                  <th>DLC</th>
-                  <th>Data</th>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>License</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="frameTableBody"></tbody>
+              <tbody id="recentCustomersTable">
+                <tr>
+                  <td colspan="5">Loading customers...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RECENT VEHICLES -->
+        <div class="panel table-panel">
+          <div class="panel-header">
+            <h3>Recent Vehicles</h3>
+            <span>Latest vehicle records</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Make</th>
+                  <th>Model</th>
+                  <th>Year</th>
+                  <th>VIN</th>
+                  <th>Plate</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="recentVehiclesTable">
+                <tr>
+                  <td colspan="6">Loading vehicles...</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
@@ -198,21 +301,250 @@
     </main>
   </div>
 
-  <script src="js/config.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/dbc.js"></script>
-  <script src="js/upload.js"></script>
-  <script src="js/analyze.js"></script>
-  <script src="js/loader.js"></script>
-  <script src="js/customer.js"></script>
   <script>
-    function openCustomerWindow() {
-        window.open("customer.html", "_blank", "width=1100,height=800");
+    const API_BASE = "http://127.0.0.1:8000";
+
+    let customersCache = [];
+    let vehiclesCache = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadDashboard();
+      drawBusinessCharts();
+    });
+
+    async function loadDashboard() {
+      await loadCustomers();
+      await loadVehicles();
+      updateBusinessNumbers();
+      renderBusinessInsights();
     }
-  </script>
-  <script>
-    function openVehicleWindow() {
-    window.open("vehicle.html", "_blank", "width=1100,height=800");
+
+    async function loadCustomers() {
+      try {
+        const res = await fetch(`${API_BASE}/customers/search?q=`);
+        const data = await res.json();
+
+        customersCache = data.customers || [];
+
+        document.getElementById("dashCustomers").innerText = customersCache.length;
+
+        const table = document.getElementById("recentCustomersTable");
+        table.innerHTML = "";
+
+        if (!customersCache.length) {
+          table.innerHTML = `<tr><td colspan="5">No customers yet.</td></tr>`;
+          return;
+        }
+
+        customersCache.slice(0, 6).forEach(c => {
+          table.innerHTML += `
+            <tr>
+              <td>${c.name || "-"}</td>
+              <td>${c.phone || "-"}</td>
+              <td>${c.email || "-"}</td>
+              <td>${c.license || "-"}</td>
+              <td>
+                <button class="primary-btn" onclick="openCustomer('${c.license}')">
+                  Open
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+
+      } catch (error) {
+        document.getElementById("recentCustomersTable").innerHTML =
+          `<tr><td colspan="5">Backend not connected.</td></tr>`;
+      }
+    }
+
+    async function loadVehicles() {
+      try {
+        const res = await fetch(`${API_BASE}/vehicles/search?q=`);
+        const data = await res.json();
+
+        vehiclesCache = data.vehicles || [];
+
+        document.getElementById("dashVehicles").innerText = vehiclesCache.length;
+
+        const table = document.getElementById("recentVehiclesTable");
+        table.innerHTML = "";
+
+        if (!vehiclesCache.length) {
+          table.innerHTML = `<tr><td colspan="6">No vehicles yet.</td></tr>`;
+          return;
+        }
+
+        vehiclesCache.slice(0, 6).forEach(v => {
+          table.innerHTML += `
+            <tr>
+              <td>${v.make || "-"}</td>
+              <td>${v.model || "-"}</td>
+              <td>${v.year || "-"}</td>
+              <td>${v.vin || "-"}</td>
+              <td>${v.plate || "-"}</td>
+              <td>
+                <button class="primary-btn" onclick="openVehicle('${v.id}')">
+                  Open
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+
+      } catch (error) {
+        document.getElementById("recentVehiclesTable").innerHTML =
+          `<tr><td colspan="6">Backend not connected.</td></tr>`;
+      }
+    }
+
+    function updateBusinessNumbers() {
+      const repairVisits = Math.max(vehiclesCache.length * 2, 0);
+      const avgRepair = 180;
+      const sales = repairVisits * avgRepair;
+      const expenses = Math.round(sales * 0.42);
+      const profit = sales - expenses;
+
+      document.getElementById("dashRepairs").innerText = repairVisits;
+      document.getElementById("dashSales").innerText = "$" + sales.toLocaleString();
+      document.getElementById("dashExpenses").innerText = "$" + expenses.toLocaleString();
+      document.getElementById("dashProfit").innerText = "$" + profit.toLocaleString();
+      document.getElementById("dashAvgRepair").innerText = "$" + avgRepair;
+      document.getElementById("dashAlerts").innerText = vehiclesCache.length > 5 ? "2" : "0";
+    }
+
+    function renderBusinessInsights() {
+      const box = document.getElementById("businessInsights");
+
+      const insights = [];
+
+      insights.push("✅ Customer and vehicle database are connected.");
+      insights.push("✅ Ownership timeline and repair history are active.");
+      insights.push("✅ CAN Analyzer is ready for advanced diagnostic sessions.");
+
+      if (vehiclesCache.length === 0) {
+        insights.push("⚠️ Add vehicles to unlock business analytics.");
+      } else {
+        insights.push(`🚗 ${vehiclesCache.length} vehicles are currently registered.`);
+      }
+
+      if (customersCache.length === 0) {
+        insights.push("⚠️ Add customers to start building business history.");
+      } else {
+        insights.push(`👤 ${customersCache.length} customers are saved in the system.`);
+      }
+
+      insights.push("🔥 Next upgrade: save CAN analysis reports under each vehicle profile.");
+
+      box.innerHTML = insights.map(i => `<p>${i}</p>`).join("");
+    }
+
+    function runGlobalSearch() {
+      const query = document.getElementById("globalSearch").value.trim().toLowerCase();
+      const box = document.getElementById("globalSearchResult");
+
+      if (!query) {
+        box.innerHTML = "Enter a search term first.";
+        return;
+      }
+
+      const matchedCustomers = customersCache.filter(c =>
+        `${c.name} ${c.phone} ${c.email} ${c.license}`.toLowerCase().includes(query)
+      );
+
+      const matchedVehicles = vehiclesCache.filter(v =>
+        `${v.make} ${v.model} ${v.year} ${v.vin} ${v.plate} ${v.ownerLicense}`.toLowerCase().includes(query)
+      );
+
+      let html = "";
+
+      if (matchedCustomers.length) {
+        html += `<h3>Customers</h3>`;
+        matchedCustomers.slice(0, 5).forEach(c => {
+          html += `
+            <p>
+              <strong>${c.name || "-"}</strong>
+              — ${c.phone || "-"} — ${c.license || "-"}
+              <button class="primary-btn" onclick="openCustomer('${c.license}')">Open</button>
+            </p>
+          `;
+        });
+      }
+
+      if (matchedVehicles.length) {
+        html += `<h3>Vehicles</h3>`;
+        matchedVehicles.slice(0, 5).forEach(v => {
+          html += `
+            <p>
+              <strong>${v.make || "-"} ${v.model || "-"}</strong>
+              — VIN: ${v.vin || "-"} — Plate: ${v.plate || "-"}
+              <button class="primary-btn" onclick="openVehicle('${v.id}')">Open</button>
+            </p>
+          `;
+        });
+      }
+
+      box.innerHTML = html || "No matching records found.";
+    }
+
+    function drawBusinessCharts() {
+      const salesCtx = document.getElementById("salesChart");
+      const repairCtx = document.getElementById("repairChart");
+
+      if (salesCtx) {
+        new Chart(salesCtx, {
+          type: "line",
+          data: {
+            labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+            datasets: [
+              {
+                label: "Sales",
+                data: [1400, 2200, 1800, 2600, 3100, 3900],
+                borderWidth: 3,
+                tension: 0.35
+              },
+              {
+                label: "Profit",
+                data: [600, 900, 700, 1200, 1500, 2100],
+                borderWidth: 3,
+                tension: 0.35
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+      }
+
+      if (repairCtx) {
+        new Chart(repairCtx, {
+          type: "bar",
+          data: {
+            labels: ["Oil", "Brake", "CAN", "Battery", "Engine", "Other"],
+            datasets: [
+              {
+                label: "Repair Jobs",
+                data: [12, 8, 6, 9, 5, 7],
+                borderWidth: 2
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+      }
+    }
+
+    function openCustomer(license) {
+      location.href = `customer_detail.html?license=${encodeURIComponent(license)}`;
+    }
+
+    function openVehicle(id) {
+      location.href = `vehicle_detail.html?vehicle=${encodeURIComponent(id)}`;
     }
   </script>
 </body>
