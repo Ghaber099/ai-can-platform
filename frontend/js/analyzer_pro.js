@@ -1,6 +1,7 @@
 let selectedCanIds = new Set();
 let loadedCanIds = [];
 let latestReportText = "";
+let tableFrames = [];
 
 function renderCanIdCheckList(canIds) {
   loadedCanIds = canIds || [];
@@ -10,7 +11,6 @@ function renderCanIdCheckList(canIds) {
   const countBox = document.getElementById("selectedCanCount");
 
   if (countBox) countBox.innerText = "0";
-
   if (!box) return;
 
   if (!loadedCanIds.length) {
@@ -27,58 +27,37 @@ function renderCanIdCheckList(canIds) {
 }
 
 function toggleCanId(id, checked) {
-  if (checked) {
-    selectedCanIds.add(id);
-  } else {
-    selectedCanIds.delete(id);
-  }
-
+  checked ? selectedCanIds.add(id) : selectedCanIds.delete(id);
   const countBox = document.getElementById("selectedCanCount");
   if (countBox) countBox.innerText = selectedCanIds.size;
 }
 
 function selectAllCanIds() {
   selectedCanIds = new Set(loadedCanIds);
-
-  document.querySelectorAll("#canIdCheckList input").forEach(input => {
-    input.checked = true;
-  });
-
+  document.querySelectorAll("#canIdCheckList input").forEach(input => input.checked = true);
   document.getElementById("selectedCanCount").innerText = selectedCanIds.size;
 }
 
 function clearAllCanIds() {
   selectedCanIds.clear();
-
-  document.querySelectorAll("#canIdCheckList input").forEach(input => {
-    input.checked = false;
-  });
-
+  document.querySelectorAll("#canIdCheckList input").forEach(input => input.checked = false);
   document.getElementById("selectedCanCount").innerText = "0";
 }
 
 function selectAllBytes() {
-  document.querySelectorAll("#byteCheckList input").forEach(input => {
-    input.checked = true;
-  });
+  document.querySelectorAll("#byteCheckList input").forEach(input => input.checked = true);
 }
 
 function clearAllBytes() {
-  document.querySelectorAll("#byteCheckList input").forEach(input => {
-    input.checked = false;
-  });
+  document.querySelectorAll("#byteCheckList input").forEach(input => input.checked = false);
 }
 
 function selectAllPairs() {
-  document.querySelectorAll("#pairCheckList input").forEach(input => {
-    input.checked = true;
-  });
+  document.querySelectorAll("#pairCheckList input").forEach(input => input.checked = true);
 }
 
 function clearAllPairs() {
-  document.querySelectorAll("#pairCheckList input").forEach(input => {
-    input.checked = false;
-  });
+  document.querySelectorAll("#pairCheckList input").forEach(input => input.checked = false);
 }
 
 function getCheckedValues(selector) {
@@ -86,8 +65,29 @@ function getCheckedValues(selector) {
     .map(input => input.value);
 }
 
+function getSignalValue(frame, signalName) {
+  if (frame[signalName] !== undefined && frame[signalName] !== null) {
+    return Number(frame[signalName]);
+  }
+
+  const data = Array.isArray(frame.data) ? frame.data.map(Number) : [];
+
+  if (signalName.startsWith("byte_")) {
+    const index = Number(signalName.replace("byte_", ""));
+    return data[index];
+  }
+
+  if (signalName === "signal_0_1") return ((data[0] || 0) << 8) + (data[1] || 0);
+  if (signalName === "signal_2_3") return ((data[2] || 0) << 8) + (data[3] || 0);
+  if (signalName === "signal_4_5") return ((data[4] || 0) << 8) + (data[5] || 0);
+  if (signalName === "signal_6_7") return ((data[6] || 0) << 8) + (data[7] || 0);
+
+  return null;
+}
+
 async function runSelectedAnalyzer() {
   const filename = window.uploadedFilename;
+  tableFrames = [];
 
   if (!filename) {
     alert("Upload CAN log first.");
@@ -133,12 +133,19 @@ async function runSelectedAnalyzer() {
       );
 
       const signalData = await signalRes.json();
-      const frames = signalData.frames || signalData.data || [];
+
+      const frames = Array.isArray(signalData.frames)
+        ? signalData.frames
+        : Array.isArray(signalData.data)
+          ? signalData.data
+          : [];
+
+      tableFrames = tableFrames.concat(frames);
 
       signals.forEach(signalName => {
         const values = frames
-          .map(frame => frame[signalName])
-          .filter(v => v !== undefined && v !== null);
+          .map(frame => getSignalValue(frame, signalName))
+          .filter(v => v !== undefined && v !== null && !Number.isNaN(v));
 
         if (values.length) {
           allDatasets.push({
@@ -158,19 +165,18 @@ async function runSelectedAnalyzer() {
   document.getElementById("reportBox").innerText =
     latestReportText || "No report generated.";
 
+  renderFrameTable(tableFrames);
   updateAnalyzerStats(ids, allDatasets, latestReportText);
 
   if (typeof drawChartMulti === "function") {
-    drawChartMulti(allDatasets, allDatasets[0]?.name || null);
+    drawChartMulti(allDatasets, allDatasets[0]?.name || null, {});
   }
 }
 
 function updateAnalyzerStats(ids, datasets, report) {
   document.getElementById("statCanIds").innerText = loadedCanIds.length || "--";
   document.getElementById("selectedCanCount").innerText = ids.length;
-
-  const frameCount = datasets[0]?.values?.length || "--";
-  document.getElementById("statFrames").innerText = frameCount;
+  document.getElementById("statFrames").innerText = tableFrames.length || "--";
 
   const anomalyCount = (report.match(/anomal/gi) || []).length;
   document.getElementById("statAnomalies").innerText = anomalyCount || "0";
@@ -203,8 +209,43 @@ function filterTable() {
   const query = input.value.toLowerCase();
 
   document.querySelectorAll("#frameTableBody tr").forEach(row => {
-    row.style.display = row.innerText.toLowerCase().includes(query)
-      ? ""
-      : "none";
+    row.style.display = row.innerText.toLowerCase().includes(query) ? "" : "none";
+  });
+}
+
+function renderFrameTable(frames) {
+  const tableBody = document.getElementById("frameTableBody");
+  const frameCount = document.getElementById("frameCount");
+
+  if (!tableBody) return;
+
+  tableBody.innerHTML = "";
+
+  if (!frames || frames.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="5">No frames found</td></tr>`;
+    if (frameCount) frameCount.innerText = "No frames loaded";
+    return;
+  }
+
+  if (frameCount) {
+    frameCount.innerText = `Showing first ${Math.min(frames.length, 100)} of ${frames.length} frames`;
+  }
+
+  frames.slice(0, 100).forEach((frame, index) => {
+    const row = document.createElement("tr");
+
+    const data = Array.isArray(frame.data)
+      ? frame.data.join(" ")
+      : (frame.data || "");
+
+    row.innerHTML = `
+      <td>${frame.frame_index ?? frame.line ?? index + 1}</td>
+      <td>${frame.timestamp ?? ""}</td>
+      <td>${frame.can_id ?? ""}</td>
+      <td>${frame.dlc ?? ""}</td>
+      <td>${data}</td>
+    `;
+
+    tableBody.appendChild(row);
   });
 }
