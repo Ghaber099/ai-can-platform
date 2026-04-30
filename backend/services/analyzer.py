@@ -74,6 +74,7 @@ def detect_signal_type(values):
     decreasing_ratio = decreasing / len(diffs)
 
     value_range = max(values) - min(values)
+    
     avg_diff = sum(abs(d) for d in diffs) / len(diffs)
 
     if value_range == 0:
@@ -188,6 +189,8 @@ def score_signal(values):
         return 0
 
     value_range = max(values) - min(values)
+    if value_range == 0:
+        return 0
 
     diffs = [values[i] - values[i - 1] for i in range(1, len(values))]
     avg_diff = sum(abs(d) for d in diffs) / len(diffs)
@@ -750,9 +753,104 @@ def checksum_candidates(selected_frames):
         "tested_formulas": tests[:8]
     }
 
+def get_16bit_pair_values(selected_frames, start_index, endian="big"):
+    values = []
 
-def detect_attack_patterns(selected_frames):
+    for frame in selected_frames:
+        data = [int(b, 16) for b in frame["data"][:8]]
+
+        if endian == "big":
+            value = (data[start_index] << 8) + data[start_index + 1]
+        else:
+            value = (data[start_index + 1] << 8) + data[start_index]
+
+        values.append(value)
+
+    return values
+
+
+def smoothness_score(values):
+    if len(values) < 3:
+        return 0
+
+    diffs = [values[i] - values[i - 1] for i in range(1, len(values))]
+
+    monotonic = sum(1 for d in diffs if d >= 0) / len(diffs)
+    stable = sum(1 for d in diffs if abs(d) < 500) / len(diffs)
+
+    value_range = max(values) - min(values)
+
+    if value_range == 0:
+        return 0
+
+    return round((monotonic * 0.6 + stable * 0.4) * 100, 2)
+
+
+def detect_endianness_for_signal(selected_frames, signal_name, byte_meanings):
+    pair_map = {
+        "signal_0_1": 0,
+        "signal_2_3": 2,
+        "signal_4_5": 4,
+        "signal_6_7": 6,
+    }
+
+    start = pair_map.get(signal_name)
+
+    if start is None:
+        return None
+
+    if not pair_is_safe_sensor(signal_name, byte_meanings):
+        return {
+            "selected": "not_applicable",
+            "confidence": 0,
+            "big_score": 0,
+            "little_score": 0
+        }
+
+    big_values = get_16bit_pair_values(selected_frames, start, "big")
+    little_values = get_16bit_pair_values(selected_frames, start, "little")
+
+    big_score = smoothness_score(big_values)
+    little_score = smoothness_score(little_values)
+
+    if big_score >= little_score:
+        selected = "big-endian"
+        confidence = big_score
+    else:
+        selected = "little-endian"
+        confidence = little_score
+
+    return {
+        "selected": selected,
+        "confidence": confidence,
+        "big_score": big_score,
+        "little_score": little_score
+    }
+
+
+
+def detect_attack_patterns(selected_frames, byte_meanings):
     if len(selected_frames) < 5:
+        return None
+
+    meanings = byte_meanings.values()
+    has_checksum = "checksum_or_validation_byte" in meanings
+    has_counter = "rolling_counter" in meanings
+
+    # Gate: no checksum means no attack validation
+    if not has_checksum:
+        return None
+
+    counter_index = None
+    checksum_index = None
+
+    for index, meaning in byte_meanings.items():
+        if meaning == "rolling_counter":
+            counter_index = index
+        if meaning == "checksum_or_validation_byte":
+            checksum_index = index
+
+    if checksum_index is None:
         return None
 
     parsed = []
@@ -760,54 +858,562 @@ def detect_attack_patterns(selected_frames):
         try:
             data = [int(b, 16) for b in frame["data"][:8]]
             parsed.append((i, data))
-        except:
+        except Exception:
             continue
 
     total = len(parsed)
+    if total == 0:
+        return None
 
-    # ---- COUNTER ANALYSIS (byte 5) ----
     counter_anomalies = []
-    prev = None
 
-    for idx, data in parsed:
-        counter = data[5]
+    if counter_index is not None:
+        prev = None
+        for idx, data in parsed:
+            counter = data[counter_index]
 
-        if prev is not None:
-            if counter != (prev + 1) % 256:
+            if prev is not None and counter != (prev + 1) % 256:
                 counter_anomalies.append(idx)
 
-        prev = counter
+            prev = counter
 
-    # ---- CHECKSUM ANALYSIS (byte 7) ----
+    suspicious_ff = [
+        idx for idx, data in parsed
+        if data[checksum_index] == 0xFF
+    ]
+
     checksum_fail = []
-    suspicious_ff = []
 
+    # Lab 3 / Lab 5 known rule
     for idx, data in parsed:
-        checksum = data[7]
-
-        # detect forced FF values
-        if checksum == 0xFF:
-            suspicious_ff.append(idx)
-
-        # basic validation using best known pattern (you already discovered earlier)
-        calc = (sum(data[0:7]) + 0x5A) % 256  # adjust if needed later
-
-        if checksum != calc:
+        calc = (sum(data[0:7]) + 0x5A) % 256
+        if data[checksum_index] != calc:
             checksum_fail.append(idx)
 
-    # ---- FINAL COUNTS ----
-    valid_frames = total - len(checksum_fail)
-    suspicious_frames = list(set(counter_anomalies + suspicious_ff))
+    fail_rate = (len(checksum_fail) / total) * 100
+    counter_rate = (len(counter_anomalies) / total) * 100
+    ff_rate = (len(suspicious_ff) / total) * 100
+
+    # Important gate:
+    # checksum fail alone is not enough unless fail rate/anomaly is meaningful
+    attack_detected = (
+        (fail_rate > 30 and (counter_rate > 10 or ff_rate > 5))
+        or ff_rate > 15
+    )
+
+    if not attack_detected:
+        return {
+            "total": total,
+            "valid_frames": total - len(checksum_fail),
+            "invalid_frames": len(checksum_fail),
+            "counter_anomalies": counter_anomalies[:10],
+            "checksum_fail_frames": checksum_fail[:10],
+            "suspicious_ff_frames": suspicious_ff[:10],
+            "suspicious_frames": [],
+            "attack_detected": False
+        }
 
     return {
         "total": total,
-        "valid_frames": valid_frames,
+        "valid_frames": total - len(checksum_fail),
         "invalid_frames": len(checksum_fail),
         "counter_anomalies": counter_anomalies[:10],
         "checksum_fail_frames": checksum_fail[:10],
         "suspicious_ff_frames": suspicious_ff[:10],
-        "suspicious_frames": suspicious_frames[:10],
-        "attack_detected": True if len(checksum_fail) > 0 or len(counter_anomalies) > 0 else False
+        "suspicious_frames": list(set(counter_anomalies + suspicious_ff))[:10],
+        "attack_detected": True
+    }
+
+
+def generate_final_intelligence(message_type, signal_report, attack_info):
+    insights = []
+    confidence_score = 0
+
+    # ---- MESSAGE TYPE ----
+    insights.append(f"Detected frame type: {message_type}")
+
+    if "Measurement" in message_type:
+        confidence_score += 30
+
+    if "Attack" in message_type:
+        insights.append("Potential attack or integrity issue detected.")
+        confidence_score += 20
+
+    # ---- SIGNAL QUALITY ----
+    
+
+    real_signals = [
+        s for s in signal_report
+        if s.get("score", 0) > 0
+        and s.get("guess") not in [
+            "not_16bit_sensor",
+            "not_measurement_signal",
+            "noise_counter_mixed_field"
+        ]
+        and s.get("role") != "not_16bit_physical_signal"
+    ]
+
+    strong_signals = [
+        s for s in real_signals
+        if s.get("score", 0) >= 60
+    ]
+
+    weak_signals = [
+        s for s in signal_report
+        if s not in real_signals
+    ]
+
+    if strong_signals:
+        insights.append(f"{len(strong_signals)} strong signal(s) detected.")
+        confidence_score += 30
+
+        # 👇 NEW: boost if endianness is strong
+        high_endian = [
+            s for s in strong_signals
+            if s.get("endianness", {}).get("confidence", 0) >= 90
+        ]
+
+        if len(high_endian) >= 2:
+            insights.append("High confidence signal decoding (stable endianness detected).")
+            confidence_score += 20
+
+    if weak_signals:
+        insights.append(f"{len(weak_signals)} weak/noisy signal(s) detected.")
+
+    # ---- ATTACK ANALYSIS ----
+    if attack_info and attack_info.get("attack_detected"):
+        invalid = attack_info["invalid_frames"]
+        total = attack_info["total"]
+
+        if total:
+            rate = (invalid / total) * 100
+
+            if rate > 40:
+                insights.append("High anomaly rate detected (possible attack).")
+                confidence_score += 10
+            elif rate > 10:
+                insights.append("Moderate anomaly rate detected.")
+
+    # ---- FINAL CONFIDENCE ----
+    if confidence_score >= 80:
+        level = "HIGH"
+    elif confidence_score >= 50:
+        level = "MEDIUM"
+    else:
+        level = "LOW"
+
+    return {
+        "insights": insights,
+        "confidence_score": confidence_score,
+        "confidence_level": level
+    }
+
+def get_bits(byte_value):
+    return [(byte_value >> i) & 1 for i in range(8)]
+
+
+def analyze_bit_stream(bit_values):
+    unique = sorted(set(bit_values))
+
+    if len(unique) == 1:
+        return {
+            "role": "constant",
+            "values": unique,
+            "change_ratio": 0
+        }
+
+    changes = sum(
+        1 for i in range(len(bit_values) - 1)
+        if bit_values[i] != bit_values[i + 1]
+    )
+
+    change_ratio = changes / (len(bit_values) - 1) if len(bit_values) > 1 else 0
+
+    if change_ratio < 0.10:
+        role = "rare_change_flag"
+    elif change_ratio > 0.40:
+        role = "frequent_toggle_flag"
+    else:
+        role = "moderate_change_flag"
+
+    return {
+        "role": role,
+        "values": unique,
+        "change_ratio": round(change_ratio * 100, 2)
+    }
+
+
+def bit_level_analysis(selected_frames):
+    byte_bit_report = []
+
+    for byte_index in range(8):
+        bit_streams = [[] for _ in range(8)]
+        byte_values = []
+
+        for frame in selected_frames:
+            data = [int(b, 16) for b in frame["data"][:8]]
+            byte_values.append(data[byte_index])
+            bits = get_bits(data[byte_index])
+
+            for bit_index in range(8):
+                bit_streams[bit_index].append(bits[bit_index])
+
+        bits_report = []
+
+        for bit_index, stream in enumerate(bit_streams):
+            result = analyze_bit_stream(stream)
+
+            bits_report.append({
+                "bit": bit_index,
+                "role": result["role"],
+                "values": result["values"],
+                "change_ratio": result["change_ratio"]
+            })
+
+        changing_bits = [
+            item["bit"] for item in bits_report
+            if item["role"] != "constant"
+        ]
+
+        groups = []
+        current = []
+
+        for bit in range(8):
+            if bit in changing_bits:
+                current.append(bit)
+            else:
+                if current:
+                    groups.append(current)
+                    current = []
+
+        if current:
+            groups.append(current)
+
+        extra_meaning = None
+        unique_values = sorted(set(byte_values))
+
+        if unique_values and min(unique_values) >= 1 and max(unique_values) <= 6 and len(unique_values) <= 6:
+            extra_meaning = "gear_state_bit_field"
+        elif len(unique_values) > 10:
+            diffs = [byte_values[i] - byte_values[i - 1] for i in range(1, len(byte_values))]
+            plus_one = sum(1 for d in diffs if d == 1)
+
+            if diffs and plus_one / len(diffs) > 0.90:
+                extra_meaning = "binary_counter_pattern"
+
+        byte_bit_report.append({
+            "byte": byte_index,
+            "bits": bits_report,
+            "changing_groups": groups,
+            "extra_meaning": extra_meaning
+        })
+
+    return byte_bit_report
+
+
+def generate_byte_role_summary(byte_report, bit_level_report):
+    summary = []
+
+    bit_lookup = {
+        item["byte"]: item
+        for item in bit_level_report
+    }
+
+    for byte in byte_report:
+        byte_index = byte["byte"]
+        meaning = byte.get("meaning", "unknown")
+        bit_info = bit_lookup.get(byte_index, {})
+        extra = bit_info.get("extra_meaning")
+
+        if meaning == "checksum_or_validation_byte":
+            role = "Checksum / validation byte"
+        elif meaning == "rolling_counter":
+            role = "Binary counter field"
+        elif meaning == "rolling_counter_with_anomalies":
+            role = "Counter field with anomalies"
+        elif meaning == "gear_or_state_field" or extra == "gear_state_bit_field":
+            role = "Gear/state bit field"
+        elif meaning == "padding":
+            role = "Padding / unused byte"
+        elif extra == "binary_counter_pattern":
+            role = "Binary counter pattern"
+        elif meaning == "changing_data":
+            role = "Signal / sensor byte"
+        elif meaning == "status_flag":
+            role = "Status flag byte"
+        else:
+            role = "Unknown byte role"
+
+        summary.append({
+            "byte": byte_index,
+            "role": role
+        })
+
+    return summary
+
+
+def generate_final_frame_map(signal_report, byte_role_summary):
+    frame_map = []
+    used_bytes = set()
+
+    signal_pairs = {
+        "signal_0_1": "Bytes 0–1",
+        "signal_2_3": "Bytes 2–3",
+        "signal_4_5": "Bytes 4–5",
+        "signal_6_7": "Bytes 6–7",
+    }
+
+    signal_byte_indexes = {
+        "signal_0_1": [0, 1],
+        "signal_2_3": [2, 3],
+        "signal_4_5": [4, 5],
+        "signal_6_7": [6, 7],
+    }
+
+    for signal in signal_report:
+        if signal.get("score", 0) <= 0:
+            continue
+
+        if signal.get("guess") in ["not_16bit_sensor", "not_measurement_signal", "noise_counter_mixed_field"]:
+            continue
+
+        name = signal["signal"]
+        endian = signal.get("endianness", {})
+        endian_text = endian.get("selected", "unknown").replace("-", " ").title()
+
+        scaling = signal.get("scaling") or {}
+
+        frame_map.append({
+            "target": signal_pairs.get(name, name),
+            "role": signal.get("guess", "unknown"),
+            "size": "16-bit",
+            "endian": endian_text,
+            "confidence": signal.get("confidence", 0),
+            "unit": scaling.get("unit", ""),
+            "scale": scaling.get("scale", ""),
+        })
+
+        for b in signal_byte_indexes.get(name, []):
+            used_bytes.add(b)
+
+    for item in byte_role_summary:
+        b = item["byte"]
+
+        if b in used_bytes:
+            continue
+
+        frame_map.append({
+            "target": f"Byte {b}",
+            "role": item["role"],
+            "size": "8-bit",
+            "endian": "N/A",
+            "confidence": 100 if item["role"] != "Unknown byte role" else 40
+        })
+
+    return frame_map
+
+
+COMMON_SCALE_PROFILES = {
+    "RPM_like_signal": [
+        {"scale": 0.25, "offset": 0, "unit": "RPM"},
+        {"scale": 0.5, "offset": 0, "unit": "RPM"},
+        {"scale": 1, "offset": 0, "unit": "RPM"},
+    ],
+    "speed_like_or_small_sensor": [
+        {"scale": 0.01, "offset": 0, "unit": "km/h"},
+        {"scale": 0.1, "offset": 0, "unit": "km/h"},
+        {"scale": 1, "offset": 0, "unit": "km/h"},
+    ],
+    "measurement_signal": [
+        {"scale": 0.1, "offset": 0, "unit": "unit"},
+        {"scale": 1, "offset": 0, "unit": "unit"},
+        {"scale": 1, "offset": -40, "unit": "°C"},
+    ],
+}
+
+
+def score_scaled_range(min_v, max_v, unit):
+    value_range = max_v - min_v
+    score = 0
+
+    if unit == "RPM":
+        if 500 <= max_v <= 8000:
+            score += 40
+        if value_range >= 200:
+            score += 30
+        if min_v >= 0:
+            score += 20
+
+    elif unit == "km/h":
+        if 0 <= min_v <= 50:
+            score += 25
+        if 20 <= max_v <= 300:
+            score += 40
+        if value_range >= 10:
+            score += 25
+
+    elif unit == "°C":
+        if -40 <= min_v <= 150 and -40 <= max_v <= 200:
+            score += 60
+        if value_range >= 5:
+            score += 20
+
+    else:
+        if value_range > 0:
+            score += 40
+
+    return min(score, 100)
+
+
+def detect_signal_scaling(signal):
+    guess = signal.get("guess")
+    raw_min = signal.get("raw_min", 0)
+    raw_max = signal.get("raw_max", 0)
+
+    if signal.get("score", 0) <= 0:
+        return None
+
+    if guess in ["not_16bit_sensor", "not_measurement_signal", "noise_counter_mixed_field"]:
+        return None
+
+    profiles = COMMON_SCALE_PROFILES.get(guess, COMMON_SCALE_PROFILES["measurement_signal"])
+
+    best = None
+
+    for item in profiles:
+        scale = item["scale"]
+        offset = item["offset"]
+        unit = item["unit"]
+
+        scaled_min = (raw_min * scale) + offset
+        scaled_max = (raw_max * scale) + offset
+
+        confidence = score_scaled_range(scaled_min, scaled_max, unit)
+
+        guess = signal.get("guess")
+
+        # ✅ BOOST LOGIC
+        if guess == "RPM_like_signal" and unit == "RPM":
+            confidence += 10
+
+        elif guess == "speed_like_or_small_sensor" and unit == "km/h":
+            confidence += 15
+
+        # ⚠️ NEW: WEAK SIGNAL PENALTY
+        if guess == "speed_like_or_small_sensor" and scaled_max < 50:
+            confidence -= 10
+
+        # clamp safely
+        confidence = max(0, min(confidence, 100))
+
+        candidate = {
+            "scale": scale,
+            "offset": offset,
+            "unit": unit,
+            "scaled_min": round(scaled_min, 2),
+            "scaled_max": round(scaled_max, 2),
+            "confidence": confidence
+        }
+
+        if best is None or candidate["confidence"] > best["confidence"]:
+            best = candidate
+
+    return best
+
+
+def classify_signal_intelligence(signal):
+    scaling = signal.get("scaling")
+    guess = signal.get("guess")
+    score = signal.get("score", 0)
+
+    if score <= 0:
+        return None
+
+    if guess in ["not_16bit_sensor", "not_measurement_signal", "noise_counter_mixed_field"]:
+        return None
+
+    raw_min = signal.get("raw_min", 0)
+    raw_max = signal.get("raw_max", 0)
+
+    if scaling:
+        scale = scaling.get("scale", 1)
+        offset = scaling.get("offset", 0)
+        unit = scaling.get("unit", "unknown")
+
+        min_v = (raw_min * scale) + offset
+        max_v = (raw_max * scale) + offset
+    else:
+        unit = "unknown"
+        min_v = raw_min
+        max_v = raw_max
+
+    value_range = max_v - min_v
+    endian_conf = signal.get("endianness", {}).get("confidence", 0)
+
+    reasons = []
+    confidence = 30
+    label = "Unknown Sensor"
+
+    if guess == "RPM_like_signal" and unit == "RPM":
+        label = "Engine RPM"
+        confidence = 70
+        reasons.append("Signal meaning is RPM-like.")
+        reasons.append(f"Scaled range fits RPM behavior ({round(min_v, 2)}–{round(max_v, 2)} RPM).")
+
+        if endian_conf >= 90:
+            confidence += 15
+            reasons.append("Endianness confidence is high.")
+
+        if score >= 80:
+            confidence += 10
+            reasons.append("Signal quality score is strong.")
+
+    elif guess == "speed_like_or_small_sensor":
+        if unit == "km/h":
+            label = "Vehicle Speed"
+            confidence = 65
+            reasons.append("Signal meaning is speed-like.")
+            reasons.append(f"Scaled range fits vehicle speed behavior ({round(min_v, 2)}–{round(max_v, 2)} km/h).")
+
+            if endian_conf >= 90:
+                confidence += 10
+                reasons.append("Endianness confidence is high.")
+
+            if value_range >= 10:
+                confidence += 10
+                reasons.append("Signal has meaningful changing range.")
+        else:
+            label = "Small Sensor / Position Signal"
+            confidence = 50
+            reasons.append("Signal is smooth but unit is uncertain.")
+            reasons.append(f"Scaled range is {round(min_v, 2)}–{round(max_v, 2)}.")
+
+    elif unit == "°C":
+        label = "Temperature Signal"
+        confidence = 60
+        reasons.append("Scaled range fits temperature-like behavior.")
+
+    else:
+        label = "Generic Measurement Signal"
+        confidence = 45
+        reasons.append("Signal behaves like a measurement but exact unit is unknown.")
+
+    confidence = max(0, min(confidence, 100))
+
+    if confidence >= 80:
+        level = "High"
+    elif confidence >= 60:
+        level = "Medium"
+    else:
+        level = "Low"
+
+    return {
+        "label": label,
+        "confidence": confidence,
+        "level": level,
+        "unit": unit if unit != "unit" else "unknown",
+        "range": [round(min_v, 2), round(max_v, 2)],
+        "reasons": reasons
     }
 
 
@@ -887,13 +1493,34 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
         byte_meanings[index] = detect_byte_meaning(index, values, byte_values)
 
     message_type = classify_message_type(byte_meanings)
-    attack_info = detect_attack_patterns(selected_frames)
+    attack_info = None
 
-    if attack_info and attack_info["attack_detected"]:
-        message_type = "Attack Simulation / Integrity Test Frame"
+    has_checksum = "checksum_or_validation_byte" in byte_meanings.values()
+    
 
-        # 👇 ADD THIS LINE
-        byte_meanings[5] = "rolling_counter_with_anomalies"
+    has_counter_like = (
+        "rolling_counter" in byte_meanings.values()
+        or (
+            len(set(byte_values[5])) > 10
+            and min(byte_values[5]) == 0
+            and max(byte_values[5]) > 20
+        )
+    )
+
+    has_ff_suspicion = byte_values[7].count(255) >= max(3, len(byte_values[7]) * 0.10)
+
+    if has_checksum and has_counter_like:
+        attack_info = detect_attack_patterns(selected_frames, byte_meanings)
+
+        if has_ff_suspicion or (attack_info and attack_info.get("attack_detected")):
+            message_type = "Attack Simulation / Integrity Test Frame"
+
+            if len(set(byte_values[5])) > 10:
+                byte_meanings[5] = "rolling_counter_with_anomalies"
+
+            for index, meaning in list(byte_meanings.items()):
+                if meaning == "rolling_counter":
+                    byte_meanings[index] = "rolling_counter_with_anomalies"
 
 
 
@@ -916,6 +1543,11 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
             "min": min(values),
             "max": max(values)
         })
+
+    
+   
+    bit_level_report = bit_level_analysis(selected_frames)
+
 
     bit_analysis = {}
 
@@ -941,17 +1573,48 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
             score = 0
             anomalies = []
 
-
         # Fix for Lab 5 mixed noise + counter signal
         if signal_name == "signal_4_5" and byte_meanings.get(5) == "rolling_counter_with_anomalies":
             guess = "noise_counter_mixed_field"
             confidence = 20
             score = 0
             anomalies = []
+
+
+        endianness = detect_endianness_for_signal(
+            selected_frames,
+            signal_name,
+            byte_meanings
+        )
+
+        temp_signal = {
+            "guess": guess,
+            "raw_min": min(values),
+            "raw_max": max(values),
+            "score": score
+        }
+
+        scaling = detect_signal_scaling(temp_signal)
+
+        temp_signal_for_ai = {
+            "guess": guess,
+            "raw_min": min(values),
+            "raw_max": max(values),
+            "score": score,
+            "scaling": scaling,
+            "endianness": endianness
+        }
+
+        smart_classification = classify_signal_intelligence(temp_signal_for_ai)
+
+        
         
 
         signal_report.append({
             "signal": signal_name,
+            "endianness": endianness,
+            "scaling": scaling,
+            "smart_classification": smart_classification,
             "role": "not_16bit_physical_signal" if guess in ["not_16bit_sensor", "not_measurement_signal"] else role,
             "score": score,
             "raw_min": min(values),
@@ -973,6 +1636,11 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
         })
 
     signal_report = sorted(signal_report, key=lambda item: item["score"], reverse=True)
+
+    byte_role_summary = generate_byte_role_summary(byte_report, bit_level_report)
+    final_frame_map = generate_final_frame_map(signal_report, byte_role_summary)
+
+    final_intel = generate_final_intelligence(message_type, signal_report, attack_info)
 
     correlations = []
     signals_list = list(signal_values.keys())
@@ -1007,8 +1675,11 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
         "signal16_report": signal_report,
         "correlations": correlations,
         "checksum_validation": checksum_result,
-        "checksum_validation": checksum_result,
         "attack_analysis": attack_info,
+        "final_intelligence": final_intel,
+        "bit_level_report": bit_level_report,
+        "byte_role_summary": byte_role_summary,
+        "final_frame_map": final_frame_map,
         "human_summary": [
             f"CAN ID {can_id} has {len(selected_frames)} frames.",
             f"Message type: {message_type}.",
