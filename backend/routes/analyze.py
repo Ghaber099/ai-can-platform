@@ -154,7 +154,7 @@ def report_text(filename: str, can_id: str):
 
         lines.append("")
 
-    lines.extend(["", "SIGNAL SCALING ANALYSIS", "-----------------------"])
+    lines.extend(["", "ADVANCED PHYSICAL CONVERSION", "----------------------------"])
 
     for signal in data.get("signal16_report", []):
         scaling = signal.get("scaling")
@@ -168,7 +168,6 @@ def report_text(filename: str, can_id: str):
         lines.append(
             f"  Raw Range: {signal.get('raw_min')} → {signal.get('raw_max')}"
         )
-       
 
         unit = scaling.get("unit", "")
 
@@ -176,15 +175,33 @@ def report_text(filename: str, can_id: str):
             unit = "unknown"
 
         lines.append(
-            f"  Scale: ×{scaling['scale']} | Offset: {scaling['offset']}"
+            f"  Best Current Scale: ×{scaling['scale']} | Offset: {scaling['offset']}"
         )
 
         lines.append(
-            f"  Scaled Range: {scaling['scaled_min']} → {scaling['scaled_max']} {unit}"
+            f"  Best Current Range: {scaling['scaled_min']} → {scaling['scaled_max']} {unit}"
         )
+
         lines.append(
             f"  Scaling Confidence: {scaling['confidence']}%"
         )
+
+        candidates = signal.get("conversion_candidates", [])
+
+        if candidates:
+            lines.append("  Top Conversion Candidates:")
+
+            for idx, item in enumerate(candidates, start=1):
+                cand_unit = item.get("unit", "unknown")
+                if cand_unit == "unit":
+                    cand_unit = "unknown"
+
+                lines.append(
+                    f"  {idx}. ×{item['scale']} offset {item['offset']} → "
+                    f"{item['scaled_min']} → {item['scaled_max']} {cand_unit} "
+                    f"| Score {item['score']} | {item['confidence']}"
+                )
+
         lines.append("")
 
 
@@ -205,10 +222,15 @@ def report_text(filename: str, can_id: str):
             f"  Physical Range: {smart['range'][0]} → {smart['range'][1]} {smart['unit']}"
         )
 
-        lines.append("  Reason:")
+        lines.append("  Reason Score:")
 
-        for reason in smart.get("reasons", []):
-            lines.append(f"  - {reason}")
+        for item in smart.get("score_breakdown", []):
+            lines.append(f"  - {item['name']}: +{item['points']}")
+
+        if smart.get("alternatives"):
+            lines.append("  Alternative Guess:")
+            for alt in smart["alternatives"]:
+                lines.append(f"  - {alt['label']} ({alt['confidence']}%)")
 
         lines.append("")
 
@@ -222,6 +244,58 @@ def report_text(filename: str, can_id: str):
             f"{item['target']} → {format_text(item['role'])} | "
             f"{item['size']} | {item['endian']} | confidence {item['confidence']}%"
         )
+
+
+    multi = data.get("multi_signal_intelligence")
+
+    if multi:
+        lines.extend(["", "MULTI-SIGNAL FRAME INTELLIGENCE", "-------------------------------"])
+
+        for item in multi.get("signals", []):
+            lines.append(f"{item['role']}:")
+            lines.append(
+                f"  {item['signal']} → {item['meaning']}"
+            )
+            lines.append(f"  Importance: {item['importance']}")
+
+            if item.get("reasons"):
+                lines.append("  Reason:")
+                for reason in item["reasons"]:
+                    lines.append(f"  - {reason}")
+
+            lines.append("")
+
+        state_fields = []
+        protection_fields = []
+
+        for field in multi.get("support_fields", []):
+            role = field["role"].lower()
+
+            if "gear" in role or "state" in role:
+                state_fields.append(field)
+            else:
+                protection_fields.append(field)
+
+        # ✅ State fields (gear, status, etc.)
+        if state_fields:
+            lines.append("State Fields:")
+            for field in state_fields:
+                lines.append(
+                    f"  Byte {field['byte']} → {field['role']}"
+                )
+            lines.append("")
+
+        # ✅ Protection fields (counter, checksum)
+        if protection_fields:
+            lines.append("Protection / Support:")
+            for field in protection_fields:
+                lines.append(
+                    f"  Byte {field['byte']} → {field['role']}"
+                )
+            lines.append("")
+
+        lines.append(f"Frame Meaning: {multi.get('frame_meaning', 'Unknown')}")
+
 
 
 
@@ -267,7 +341,117 @@ def report_text(filename: str, can_id: str):
     lines.extend(["SIGNAL CORRELATION", "------------------"])
 
     for correlation in data.get("correlations", []):
-        lines.append(f"{correlation['pair']}: {correlation['correlation']}")
+        lines.append(
+            f"{correlation['pair']}: {correlation['correlation']} "
+            f"→ {correlation.get('meaning', 'No interpretation')}"
+        )
+
+    strong_corrs = [
+        c for c in data.get("correlations", [])
+        if abs(c.get("correlation", 0)) >= 0.85
+    ]
+
+    if strong_corrs:
+        lines.append("")
+        lines.append("KEY INSIGHT")
+        lines.append("-----------")
+        for c in strong_corrs:
+            lines.append(
+                f"{c['pair']} are strongly correlated → likely related drivetrain/measurement signals."
+            )
+
+    corr_ai = data.get("correlation_analysis")
+
+    if corr_ai:
+        lines.extend(["", "SIGNAL CORRELATION ANALYSIS", "---------------------------"])
+
+        # ⚠ Warning
+        if corr_ai.get("warning"):
+            lines.append(f"⚠ {corr_ai['warning']}")
+            lines.append("")
+
+        # 👇 MOVE THIS BLOCK HERE
+        attack_info = data.get("attack_analysis")
+
+        if attack_info and attack_info.get("attack_detected"):
+            invalid = attack_info.get("invalid_frames", 0)
+            total = attack_info.get("total", 1)
+
+            rate = (invalid / total) * 100 if total else 0
+
+            if rate > 40:
+                level = "LOW"
+            elif rate > 10:
+                level = "MEDIUM"
+            else:
+                level = "HIGH"
+
+            lines.append(f"Correlation reliability: {level} due to integrity anomalies")
+            lines.append("")
+
+        # ✅ Now show results
+        for item in corr_ai.get("results", []):
+            lines.append(f"{item['pair']}")
+            lines.append(f"  Correlation: {item['correlation']}")
+            lines.append(f"  Strength: {item['strength']}")
+            lines.append(f"  Meaning: {item['meaning']}")
+            lines.append(f"  Interpretation: {item['interpretation']}")
+            lines.append("")
+
+        # Ignored section
+        used_names = set()
+
+        for item in corr_ai.get("results", []):
+            used_names.add(item.get("signal_1"))
+            used_names.add(item.get("signal_2"))
+
+        filtered_ignored = [
+            ignored for ignored in corr_ai.get("ignored", [])
+            if ignored.get("name") not in used_names
+        ]
+
+        if filtered_ignored:
+            lines.append("Ignored:")
+            for ignored in filtered_ignored:
+                lines.append(f"  {ignored['name']} → {ignored['reason']}")
+            lines.append("")
+
+
+    
+
+
+    temporal = data.get("temporal_intelligence")
+
+    if temporal:
+        lines.extend(["", "TEMPORAL BEHAVIOR INTELLIGENCE", "------------------------------"])
+
+        if temporal.get("warning"):
+            lines.append(f"⚠ {temporal['warning']}")
+
+        lines.append(f"Temporal reliability: {temporal.get('reliability', 'UNKNOWN')}")
+
+        timing = temporal.get("timing")
+        if timing:
+            lines.append("")
+            lines.append("FRAME TIMING BEHAVIOR")
+            lines.append("---------------------")
+            lines.append(f"Average interval: {timing['avg_interval_ms']} ms")
+            lines.append(f"Min interval: {timing['min_interval_ms']} ms")
+            lines.append(f"Max interval: {timing['max_interval_ms']} ms")
+            lines.append(f"Jitter: {timing['jitter_ms']} ms ({timing['jitter_level']})")
+            lines.append(f"Timing status: {timing['status']}")
+
+        for item in temporal.get("signals", []):
+            lines.append("")
+            lines.append(f"{item['signal']} → {item['label']}")
+            lines.append(f"  Trend: {item['trend']}")
+            lines.append(f"  Behavior: {item['behavior']}")
+            lines.append(f"  Stability: {item['stability']}")
+            lines.append(f"  Avg jump: {item['avg_jump']}")
+            lines.append(f"  Max jump: {item['max_jump']}")
+            lines.append(f"  Sudden jumps: {item['sudden_jumps'] if item['sudden_jumps'] else 'None'}")
+            lines.append(f"  Interpretation: {item['interpretation']}")
+    
 
 
     checksum = data.get("checksum_validation")
@@ -324,8 +508,13 @@ def report_text(filename: str, can_id: str):
             lines.append(f"- {insight}")
 
         lines.append("")
-        lines.append(f"Confidence Score: {intel.get('confidence_score')}")
-        lines.append(f"Confidence Level: {intel.get('confidence_level')}")
+
+        level = intel.get("confidence_level", "UNKNOWN")
+        score = intel.get("confidence_score", 0)
+
+        lines.append(
+            f"Overall Frame Intelligence: {level} ({score}%)"
+        )
 
 
     

@@ -1339,7 +1339,6 @@ def classify_signal_intelligence(signal):
         scale = scaling.get("scale", 1)
         offset = scaling.get("offset", 0)
         unit = scaling.get("unit", "unknown")
-
         min_v = (raw_min * scale) + offset
         max_v = (raw_max * scale) + offset
     else:
@@ -1347,56 +1346,77 @@ def classify_signal_intelligence(signal):
         min_v = raw_min
         max_v = raw_max
 
+    if unit == "unit":
+        unit = "unknown"
+
     value_range = max_v - min_v
     endian_conf = signal.get("endianness", {}).get("confidence", 0)
 
-    reasons = []
-    confidence = 30
+    score_breakdown = []
+    alternatives = []
+
     label = "Unknown Sensor"
+    confidence = 0
 
     if guess == "RPM_like_signal" and unit == "RPM":
         label = "Engine RPM"
-        confidence = 70
-        reasons.append("Signal meaning is RPM-like.")
-        reasons.append(f"Scaled range fits RPM behavior ({round(min_v, 2)}–{round(max_v, 2)} RPM).")
 
-        if endian_conf >= 90:
-            confidence += 15
-            reasons.append("Endianness confidence is high.")
+        if 0 <= min_v and 500 <= max_v <= 8000:
+            confidence += 30
+            score_breakdown.append({"name": "RPM range match", "points": 30})
 
         if score >= 80:
-            confidence += 10
-            reasons.append("Signal quality score is strong.")
+            confidence += 25
+            score_breakdown.append({"name": "Smooth strong signal", "points": 25})
+
+        if scaling and scaling.get("unit") == "RPM":
+            confidence += 25
+            score_breakdown.append({"name": "Scaling match", "points": 25})
+
+        if endian_conf >= 90:
+            confidence += 20
+            score_breakdown.append({"name": "High endianness confidence", "points": 20})
+
+        alternatives.append({"label": "Generic Measurement Signal", "confidence": 35})
 
     elif guess == "speed_like_or_small_sensor":
         if unit == "km/h":
             label = "Vehicle Speed"
-            confidence = 65
-            reasons.append("Signal meaning is speed-like.")
-            reasons.append(f"Scaled range fits vehicle speed behavior ({round(min_v, 2)}–{round(max_v, 2)} km/h).")
+
+            if 0 <= min_v <= 80 and 20 <= max_v <= 300:
+                confidence += 30
+                score_breakdown.append({"name": "Speed range match", "points": 30})
+
+            if score >= 60:
+                confidence += 25
+                score_breakdown.append({"name": "Smooth speed-like signal", "points": 25})
+
+            if scaling and scaling.get("unit") == "km/h":
+                confidence += 25
+                score_breakdown.append({"name": "Scaling match", "points": 25})
 
             if endian_conf >= 90:
-                confidence += 10
-                reasons.append("Endianness confidence is high.")
+                confidence += 20
+                score_breakdown.append({"name": "High endianness confidence", "points": 20})
 
-            if value_range >= 10:
-                confidence += 10
-                reasons.append("Signal has meaningful changing range.")
+            alternatives.append({"label": "Small Sensor / Position Signal", "confidence": 30})
         else:
             label = "Small Sensor / Position Signal"
-            confidence = 50
-            reasons.append("Signal is smooth but unit is uncertain.")
-            reasons.append(f"Scaled range is {round(min_v, 2)}–{round(max_v, 2)}.")
+            confidence = 45
+            score_breakdown.append({"name": "Smooth but unit uncertain", "points": 45})
+            alternatives.append({"label": "Vehicle Speed", "confidence": 25})
 
     elif unit == "°C":
         label = "Temperature Signal"
-        confidence = 60
-        reasons.append("Scaled range fits temperature-like behavior.")
+        confidence = 70
+        score_breakdown.append({"name": "Temperature range match", "points": 70})
+        alternatives.append({"label": "Generic Measurement Signal", "confidence": 30})
 
     else:
         label = "Generic Measurement Signal"
         confidence = 45
-        reasons.append("Signal behaves like a measurement but exact unit is unknown.")
+        score_breakdown.append({"name": "Measurement behavior detected", "points": 45})
+        alternatives.append({"label": "Unknown Sensor", "confidence": 30})
 
     confidence = max(0, min(confidence, 100))
 
@@ -1411,11 +1431,689 @@ def classify_signal_intelligence(signal):
         "label": label,
         "confidence": confidence,
         "level": level,
-        "unit": unit if unit != "unit" else "unknown",
+        "unit": unit,
         "range": [round(min_v, 2), round(max_v, 2)],
-        "reasons": reasons
+        "score_breakdown": score_breakdown,
+        "alternatives": alternatives
     }
 
+def explain_correlation(value):
+    abs_v = abs(value)
+
+    if abs_v >= 0.85:
+        if value > 0:
+            return "Strong positive correlation → signals likely related"
+        return "Strong negative correlation → inverse relationship possible"
+
+    if abs_v >= 0.50:
+        return "Moderate relationship"
+
+    if abs_v >= 0.25:
+        return "Weak relationship"
+
+    return "No meaningful relationship"
+
+
+ADVANCED_SCALES = [
+    0.001, 0.01, 0.02, 0.05,
+    0.1, 0.125, 0.2, 0.25,
+    0.5, 1, 2, 10, 100
+]
+
+ADVANCED_OFFSETS = [-40, -20, 0, 20, 40]
+
+
+def conversion_confidence_level(score):
+    if score >= 80:
+        return "High"
+    if score >= 55:
+        return "Medium"
+    return "Low"
+
+
+def guess_physical_unit(min_v, max_v, signal_guess):
+    if signal_guess == "RPM_like_signal":
+        if 200 <= max_v <= 8000:
+            return "RPM"
+        return "unknown"
+
+    if signal_guess == "speed_like_or_small_sensor":
+        if 0 <= min_v and 10 <= max_v <= 300:
+            return "km/h"
+        return "unknown"
+
+    if -40 <= min_v <= 150 and -40 <= max_v <= 200:
+        return "°C"
+
+    if 0 <= min_v and max_v <= 100:
+        return "%"
+
+    return "unknown"
+
+
+def score_conversion_candidate(min_v, max_v, signal_guess, signal_score, unit):
+    value_range = max_v - min_v
+    score = 0
+
+    if value_range > 0:
+        score += 10
+
+    if signal_score >= 60:
+        score += 15
+
+    if signal_guess == "RPM_like_signal":
+        if unit == "RPM":
+            score += 20
+
+        # Strong RPM priority
+        if 600 <= max_v <= 4000:
+            score += 50
+        elif 400 <= max_v < 600:
+            score -= 30
+        elif max_v < 400:
+            score -= 60
+
+        # Prefer useful engine operating range
+        if value_range > 500:
+            score += 20
+        elif value_range < 200:
+            score -= 20
+
+        if min_v < 0:
+            score -= 30
+
+    elif signal_guess == "speed_like_or_small_sensor":
+        if unit == "km/h":
+            score += 25
+
+        # Strong realistic vehicle speed range
+        if 0 <= min_v <= 80 and 30 <= max_v <= 300:
+            score += 40
+        elif 10 <= max_v < 30:
+            score += 10
+        elif max_v < 10:
+            score -= 30
+
+        if value_range >= 20:
+            score += 20
+        elif value_range < 10:
+            score -= 20
+
+        if min_v < 0 and unit == "km/h":
+            score -= 30
+
+    else:
+        if unit != "unknown":
+            score += 20
+        if value_range >= 5:
+            score += 15
+
+    return max(0, min(score, 100))
+
+
+def advanced_physical_conversion(signal):
+    signal_guess = signal.get("guess")
+    raw_min = signal.get("raw_min", 0)
+    raw_max = signal.get("raw_max", 0)
+    signal_score = signal.get("score", 0)
+
+    if signal_score <= 0:
+        return []
+
+    if signal_guess in [
+        "not_16bit_sensor",
+        "not_measurement_signal",
+        "noise_counter_mixed_field"
+    ]:
+        return []
+
+    candidates = []
+
+    trusted = detect_signal_scaling(signal)
+
+    if trusted:
+        candidates.append({
+            "scale": trusted["scale"],
+            "offset": trusted["offset"],
+            "scaled_min": trusted["scaled_min"],
+            "scaled_max": trusted["scaled_max"],
+            "unit": trusted["unit"] if trusted["unit"] != "unit" else "unknown",
+            "score": min(100, trusted["confidence"] + 10),
+            "confidence": conversion_confidence_level(min(100, trusted["confidence"] + 10))
+        })
+
+    for scale in ADVANCED_SCALES:
+        for offset in ADVANCED_OFFSETS:
+            scaled_min = (raw_min * scale) + offset
+            scaled_max = (raw_max * scale) + offset
+
+            if scaled_min > scaled_max:
+                scaled_min, scaled_max = scaled_max, scaled_min
+
+            unit = guess_physical_unit(scaled_min, scaled_max, signal_guess)
+
+            score = score_conversion_candidate(
+                scaled_min,
+                scaled_max,
+                signal_guess,
+                signal_score,
+                unit
+            )
+
+            candidates.append({
+                "scale": scale,
+                "offset": offset,
+                "scaled_min": round(scaled_min, 2),
+                "scaled_max": round(scaled_max, 2),
+                "unit": unit,
+                "score": score,
+                "confidence": conversion_confidence_level(score)
+            })
+
+    candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
+
+    # Remove near-duplicates by same unit + similar range
+    clean = []
+    seen = set()
+
+    for c in candidates:
+        key = (
+            c["unit"],
+            round(c["scaled_min"], 1),
+            round(c["scaled_max"], 1)
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        clean.append(c)
+
+        if len(clean) >= 3:
+            break
+
+    return clean
+
+
+def get_signal_smart_label(signal):
+    smart = signal.get("smart_classification") or {}
+
+    if smart.get("label"):
+        return smart["label"]
+
+    guess = signal.get("guess", "Unknown")
+    return guess.replace("_", " ")
+
+
+def signal_importance(signal):
+    score = 0
+    reasons = []
+
+    if signal.get("score", 0) >= 80:
+        score += 30
+        reasons.append("Strong signal quality")
+    elif signal.get("score", 0) >= 60:
+        score += 20
+        reasons.append("Valid physical signal")
+
+    smart = signal.get("smart_classification") or {}
+    smart_conf = smart.get("confidence", 0)
+
+    if smart_conf >= 80:
+        score += 30
+        reasons.append("High smart classification confidence")
+    elif smart_conf >= 60:
+        score += 20
+        reasons.append("Medium smart classification confidence")
+
+    scaling = signal.get("scaling") or {}
+    scaling_conf = scaling.get("confidence", 0)
+
+    if scaling_conf >= 80:
+        score += 20
+        reasons.append("High conversion confidence")
+    elif scaling_conf >= 50:
+        score += 10
+        reasons.append("Medium conversion confidence")
+
+    meaning = get_signal_smart_label(signal).lower()
+
+    if "rpm" in meaning:
+        score += 15
+        reasons.append("Engine RPM is usually a primary powertrain signal")
+    elif "speed" in meaning:
+        score += 12
+        reasons.append("Vehicle speed is an important movement signal")
+    elif "generic" in meaning or "sensor" in meaning:
+        score += 5
+        reasons.append("General measurement signal")
+
+    return score, reasons
+
+
+def assign_frame_role(rank):
+    if rank == 0:
+        return "Primary Signal"
+    if rank == 1:
+        return "Secondary Signal"
+    return "Supporting Signal"
+
+
+def classify_full_frame(primary_label, secondary_label, byte_role_summary, message_type):
+    primary = (primary_label or "").lower()
+    secondary = (secondary_label or "").lower()
+
+    byte_roles_text = " ".join(
+        item.get("role", "").lower()
+        for item in byte_role_summary
+    )
+
+    has_counter = "counter" in byte_roles_text
+    has_checksum = "checksum" in byte_roles_text
+    has_attack = "attack" in message_type.lower()
+
+    if "rpm" in primary and "speed" in secondary:
+        meaning = "Powertrain measurement frame"
+    elif "rpm" in primary:
+        meaning = "Engine measurement frame"
+    elif "speed" in primary or "speed" in secondary:
+        meaning = "Vehicle movement measurement frame"
+    elif "gear" in byte_roles_text:
+        meaning = "Gear/state status frame"
+    elif "counter" in byte_roles_text:
+        meaning = "Status/counter frame"
+    else:
+        meaning = "General measurement/status frame"
+
+    if has_counter and has_checksum:
+        meaning += " with counter/checksum protection"
+
+    if has_attack:
+        meaning += " with integrity/attack anomalies"
+
+    return meaning
+
+
+def build_multi_signal_frame_intelligence(signal_report, byte_role_summary, message_type):
+    valid_signals = [
+        s for s in signal_report
+        if s.get("score", 0) > 0
+        and s.get("guess") not in [
+            "not_16bit_sensor",
+            "not_measurement_signal",
+            "noise_counter_mixed_field"
+        ]
+        and s.get("role") != "not_16bit_physical_signal"
+    ]
+
+    ranked_items = []
+
+    for signal in valid_signals:
+        importance, reasons = signal_importance(signal)
+
+        ranked_items.append({
+            "signal": signal["signal"],
+            "meaning": get_signal_smart_label(signal),
+            "role": "",
+            "importance": importance,
+            "reasons": reasons
+        })
+
+    ranked_items = sorted(
+        ranked_items,
+        key=lambda item: item["importance"],
+        reverse=True
+    )
+
+    for idx, item in enumerate(ranked_items):
+        item["role"] = assign_frame_role(idx)
+
+    support_fields = []
+
+    for item in byte_role_summary:
+        role = item.get("role", "")
+        role_lower = role.lower()
+
+        if (
+            "counter" in role_lower
+            or "checksum" in role_lower
+            or "gear" in role_lower
+            or "status" in role_lower
+        ):
+            support_fields.append({
+                "byte": item["byte"],
+                "role": role
+            })
+
+    primary_label = ranked_items[0]["meaning"] if len(ranked_items) > 0 else ""
+    secondary_label = ranked_items[1]["meaning"] if len(ranked_items) > 1 else ""
+
+    frame_meaning = classify_full_frame(
+        primary_label,
+        secondary_label,
+        byte_role_summary,
+        message_type
+    )
+
+    return {
+        "signals": ranked_items,
+        "support_fields": support_fields,
+        "frame_meaning": frame_meaning
+    }
+
+def should_correlate_signal(signal):
+    text = " ".join([
+        str(signal.get("role", "")),
+        str(signal.get("guess", "")),
+        str((signal.get("smart_classification") or {}).get("label", "")),
+    ]).lower()
+
+    bad_words = [
+        "counter",
+        "checksum",
+        "padding",
+        "noise",
+        "not_16bit",
+        "not 16-bit",
+        "not measurement",
+        "protection",
+    ]
+
+    if signal.get("score", 0) <= 0:
+        return False
+
+    if signal.get("role") == "not_16bit_physical_signal":
+        return False
+
+    return not any(word in text for word in bad_words)
+
+
+def correlation_strength_label(corr):
+    if corr >= 0.8:
+        return "Strong positive correlation"
+    if corr >= 0.5:
+        return "Moderate positive correlation"
+    if corr <= -0.8:
+        return "Strong negative correlation"
+    if corr <= -0.5:
+        return "Moderate negative correlation"
+    return "No meaningful relationship"
+
+
+def correlation_interpretation(signal_1, signal_2, corr, signal_lookup):
+    label_1 = get_signal_smart_label(signal_lookup.get(signal_1, {})).lower()
+    label_2 = get_signal_smart_label(signal_lookup.get(signal_2, {})).lower()
+
+    if abs(corr) < 0.5:
+        return "Signals do not show a meaningful relationship."
+
+    if ("rpm" in label_1 and "speed" in label_2) or ("speed" in label_1 and "rpm" in label_2):
+        if corr > 0:
+            return "RPM and speed move together → likely drivetrain relationship."
+        return "RPM and speed move in opposite directions → unusual drivetrain behavior."
+
+    if corr > 0:
+        return "Signals rise/fall together → likely related behavior."
+
+    return "Signals move inversely → possible inverse relationship."
+
+
+def build_correlation_analysis(signal_report, signal_values, byte_role_summary, message_type):
+    signal_lookup = {s["signal"]: s for s in signal_report}
+
+    valid_signals = [
+        s["signal"]
+        for s in signal_report
+        if should_correlate_signal(s)
+    ]
+
+    results = []
+
+    for i in range(len(valid_signals)):
+        for j in range(i + 1, len(valid_signals)):
+            signal_1 = valid_signals[i]
+            signal_2 = valid_signals[j]
+
+            corr = round(
+                calculate_correlation(
+                    signal_values[signal_1],
+                    signal_values[signal_2]
+                ),
+                2
+            )
+
+            results.append({
+                "pair": f"{signal_1} ↔ {signal_2}",
+                "signal_1": signal_1,
+                "signal_2": signal_2,
+                "correlation": corr,
+                "strength": correlation_strength_label(corr),
+                "meaning": explain_correlation(corr),
+                "interpretation": correlation_interpretation(
+                    signal_1,
+                    signal_2,
+                    corr,
+                    signal_lookup
+                )
+            })
+
+    used_signal_names = set(valid_signals)
+
+    ignored = []
+
+    for signal in signal_report:
+        signal_name = signal["signal"]
+
+        # ✅ DO NOT ignore signals that were used in correlation
+        if signal_name in used_signal_names:
+            continue
+
+        if not should_correlate_signal(signal):
+            ignored.append({
+                "name": signal_name,
+                "reason": format_ignore_reason(signal)
+            })
+
+    for byte in byte_role_summary:
+        role = byte.get("role", "")
+        role_lower = role.lower()
+
+        if "counter" in role_lower or "checksum" in role_lower or "padding" in role_lower:
+            ignored.append({
+                "name": f"Byte {byte['byte']}",
+                "reason": role
+            })
+
+    warning = None
+    if "attack" in message_type.lower():
+        warning = "Correlation may be unreliable due to integrity/attack anomalies."
+
+    return {
+        "results": results,
+        "ignored": ignored,
+        "warning": warning
+    }
+
+
+def format_ignore_reason(signal):
+    if signal.get("role") == "not_16bit_physical_signal":
+        return "Not a valid 16-bit physical signal"
+
+    guess = signal.get("guess", "")
+
+    if guess == "noise_counter_mixed_field":
+        return "Noisy/protection mixed field"
+
+    if guess in ["not_16bit_sensor", "not_measurement_signal"]:
+        return "Rejected non-physical signal"
+
+    if signal.get("score", 0) <= 0:
+        return "Low or zero signal score"
+
+    return "Excluded from correlation"
+
+
+def analyze_temporal_values(values):
+    if len(values) < 3:
+        return None
+
+    diffs = [values[i + 1] - values[i] for i in range(len(values) - 1)]
+
+    positive = sum(1 for d in diffs if d > 0)
+    negative = sum(1 for d in diffs if d < 0)
+    zero = sum(1 for d in diffs if d == 0)
+
+    total = len(diffs)
+    avg_jump = sum(abs(d) for d in diffs) / total if total else 0
+    max_jump = max(abs(d) for d in diffs) if diffs else 0
+
+    if positive / total > 0.8:
+        trend = "Increasing"
+    elif negative / total > 0.8:
+        trend = "Decreasing"
+    elif zero / total > 0.7:
+        trend = "Stable"
+    else:
+        trend = "Mixed"
+
+    sudden_jumps = [
+        i + 1 for i, d in enumerate(diffs)
+        if avg_jump > 0 and abs(d) > avg_jump * 5 and abs(d) > 10
+    ]
+
+    if sudden_jumps:
+        behavior = "Sudden jump / abnormal transition"
+        stability = "Low"
+    elif trend == "Increasing":
+        behavior = "Smooth ramp-up"
+        stability = "High"
+    elif trend == "Decreasing":
+        behavior = "Smooth decrease"
+        stability = "High"
+    elif trend == "Stable":
+        behavior = "Stable behavior"
+        stability = "High"
+    else:
+        behavior = "Mixed behavior"
+        stability = "Medium"
+
+    return {
+        "trend": trend,
+        "behavior": behavior,
+        "stability": stability,
+        "avg_jump": round(avg_jump, 2),
+        "max_jump": round(max_jump, 2),
+        "sudden_jumps": sudden_jumps[:10]
+    }
+
+
+def analyze_frame_timing(timestamps):
+    if len(timestamps) < 3:
+        return None
+
+    intervals = [
+        timestamps[i + 1] - timestamps[i]
+        for i in range(len(timestamps) - 1)
+    ]
+
+    avg_interval = sum(intervals) / len(intervals)
+    min_interval = min(intervals)
+    max_interval = max(intervals)
+    jitter = max_interval - min_interval
+
+    if jitter < avg_interval * 0.10:
+        status = "Stable periodic frame"
+        jitter_level = "Low"
+    elif jitter < avg_interval * 0.30:
+        status = "Minor jitter"
+        jitter_level = "Medium"
+    else:
+        status = "Timing anomaly"
+        jitter_level = "High"
+
+    return {
+        "avg_interval_ms": round(avg_interval * 1000, 3),
+        "min_interval_ms": round(min_interval * 1000, 3),
+        "max_interval_ms": round(max_interval * 1000, 3),
+        "jitter_ms": round(jitter * 1000, 3),
+        "status": status,
+        "jitter_level": jitter_level
+    }
+
+
+def build_temporal_intelligence(signal_report, signal_values, timestamps, message_type, attack_info):
+    timing = analyze_frame_timing(timestamps)
+
+    reliability = "HIGH"
+    warning = None
+
+    if "attack" in message_type.lower() or (attack_info and attack_info.get("attack_detected")):
+        reliability = "LOW"
+        warning = "Temporal behavior may be unreliable due to integrity/attack anomalies."
+
+    signals = []
+
+    for signal in signal_report:
+        if signal.get("score", 0) <= 0:
+            continue
+
+        if signal.get("guess") in [
+            "not_16bit_sensor",
+            "not_measurement_signal",
+            "noise_counter_mixed_field"
+        ]:
+            continue
+
+        if signal.get("role") == "not_16bit_physical_signal":
+            continue
+
+        name = signal["signal"]
+        analysis = analyze_temporal_values(signal_values.get(name, []))
+
+        if not analysis:
+            continue
+
+        if reliability == "LOW":
+            if analysis["sudden_jumps"]:
+                analysis["trend"] = "Mixed / irregular"
+                analysis["behavior"] = "Abnormal / possible injected values"
+                analysis["stability"] = "Low"
+            else:
+                analysis["behavior"] = "Possibly unreliable due to integrity anomalies"
+
+
+        smart = signal.get("smart_classification") or {}
+        label = smart.get("label") or signal.get("guess", "Unknown")
+
+        if reliability == "LOW" and analysis["stability"] != "High":
+            interpretation = "Behavior may be affected by injected or invalid frames."
+        elif analysis["trend"] == "Increasing":
+            interpretation = f"{label} is increasing normally."
+        elif analysis["trend"] == "Decreasing":
+            interpretation = f"{label} is decreasing normally."
+        elif analysis["trend"] == "Stable":
+            interpretation = f"{label} is stable."
+        else:
+            interpretation = f"{label} shows mixed behavior."
+
+        signals.append({
+            "signal": name,
+            "label": label,
+            "trend": analysis["trend"],
+            "behavior": analysis["behavior"],
+            "stability": analysis["stability"],
+            "avg_jump": analysis["avg_jump"],
+            "max_jump": analysis["max_jump"],
+            "sudden_jumps": analysis["sudden_jumps"],
+            "interpretation": interpretation
+        })
+
+    return {
+        "timing": timing,
+        "reliability": reliability,
+        "warning": warning,
+        "signals": signals
+    }
 
 
 
@@ -1596,6 +2294,13 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
 
         scaling = detect_signal_scaling(temp_signal)
 
+        conversion_candidates = advanced_physical_conversion({
+            "guess": guess,
+            "raw_min": min(values),
+            "raw_max": max(values),
+            "score": score
+        })
+
         temp_signal_for_ai = {
             "guess": guess,
             "raw_min": min(values),
@@ -1615,6 +2320,7 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
             "endianness": endianness,
             "scaling": scaling,
             "smart_classification": smart_classification,
+            "conversion_candidates": conversion_candidates,
             "role": "not_16bit_physical_signal" if guess in ["not_16bit_sensor", "not_measurement_signal"] else role,
             "score": score,
             "raw_min": min(values),
@@ -1640,25 +2346,64 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
     byte_role_summary = generate_byte_role_summary(byte_report, bit_level_report)
     final_frame_map = generate_final_frame_map(signal_report, byte_role_summary)
 
+    multi_signal_intelligence = build_multi_signal_frame_intelligence(
+        signal_report,
+        byte_role_summary,
+        message_type
+    )
+
     final_intel = generate_final_intelligence(message_type, signal_report, attack_info)
 
-    correlations = []
-    signals_list = list(signal_values.keys())
 
-    for i in range(len(signals_list)):
-        for j in range(i + 1, len(signals_list)):
-            signal_1 = signals_list[i]
-            signal_2 = signals_list[j]
+
+
+    correlations = []
+   
+
+    valid_correlation_signals = [
+        s["signal"]
+        for s in signal_report
+        if s.get("score", 0) > 0
+        and s.get("guess") not in [
+            "not_16bit_sensor",
+            "not_measurement_signal",
+            "noise_counter_mixed_field"
+        ]
+        and s.get("role") != "not_16bit_physical_signal"
+    ]
+
+    for i in range(len(valid_correlation_signals)):
+        for j in range(i + 1, len(valid_correlation_signals)):
+            signal_1 = valid_correlation_signals[i]
+            signal_2 = valid_correlation_signals[j]
 
             correlation = calculate_correlation(
                 signal_values[signal_1],
                 signal_values[signal_2]
             )
 
+            corr_value = round(correlation, 2)
+
             correlations.append({
                 "pair": f"{signal_1} ↔ {signal_2}",
-                "correlation": round(correlation, 2)
+                "correlation": corr_value,
+                "meaning": explain_correlation(corr_value)
             })
+
+    correlation_analysis = build_correlation_analysis(
+        signal_report,
+        signal_values,
+        byte_role_summary,
+        message_type
+    )
+
+    temporal_intelligence = build_temporal_intelligence(
+        signal_report,
+        signal_values,
+        timestamps,
+        message_type,
+        attack_info
+    )
 
     return {
         "filename": filename,
@@ -1674,12 +2419,15 @@ def can_id_report(filename: str, can_id: str, dbc_filename: str = None):
         "bit_analysis": bit_analysis,
         "signal16_report": signal_report,
         "correlations": correlations,
+        "correlation_analysis": correlation_analysis,
         "checksum_validation": checksum_result,
         "attack_analysis": attack_info,
         "final_intelligence": final_intel,
         "bit_level_report": bit_level_report,
         "byte_role_summary": byte_role_summary,
         "final_frame_map": final_frame_map,
+        "multi_signal_intelligence": multi_signal_intelligence,
+        "temporal_intelligence": temporal_intelligence,
         "human_summary": [
             f"CAN ID {can_id} has {len(selected_frames)} frames.",
             f"Message type: {message_type}.",
