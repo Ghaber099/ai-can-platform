@@ -4,248 +4,253 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>AutoScope AI | CAN Analyzer</title>
+  <title>AutoScope AI | CAN Intelligence</title>
 
   <link rel="stylesheet" href="css/dashboard.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-  <div class="app-shell">
+<div class="app-shell">
 
-    <aside class="sidebar">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div>
       <div class="brand">
         <div class="brand-icon">⚡</div>
         <div>
           <h1>AutoScope AI</h1>
-          <p>Garage Intelligence</p>
+          <p>Vehicle Intelligence</p>
         </div>
       </div>
 
       <nav class="nav-menu">
         <a class="nav-item" href="main.html">Dashboard</a>
         <a class="nav-item active" href="analyzer.html">CAN Analyzer</a>
-        <a class="nav-item" href="customer.html">Customers</a>
-        <a class="nav-item" href="vehicle.html">Vehicles</a>
-        <a class="nav-item" href="customers_list.html">Customer List</a>
-        <a class="nav-item" href="vehicles_list.html">Vehicle List</a>
-        <a class="nav-item" href="#">Reports</a>
+        <a class="nav-item" href="reports.html">Reports</a>
         <a class="nav-item" href="#">Settings</a>
       </nav>
+    </div>
 
-      <div class="sidebar-footer">
-        <span class="status-dot"></span>
-        Backend Online
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>
+      System Online
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div>
+        <h2>CAN Intelligence Engine</h2>
+        <p>AI-powered decoding, attack detection & signal intelligence</p>
       </div>
-    </aside>
 
-    <main class="main-content">
-      <header class="topbar">
-        <div>
-          <h2>CAN Analyzer</h2>
-          <p>Upload CAN logs, inspect frames, filter CAN IDs, and analyze selected bytes.</p>
-        </div>
+      <div class="topbar-actions">
+        <button class="ghost-btn">Workspace</button>
+        <button class="primary-btn" onclick="downloadReport()">Export Report</button>
+      </div>
+    </header>
 
-        <div class="topbar-actions">
-          <button class="ghost-btn" onclick="location.href='main.html'">Dashboard</button>
-          <button class="primary-btn" onclick="downloadReport()">Download Report</button>
-        </div>
-      </header>
+    <!-- 🚨 SECURITY ALERT -->
+    <div id="alertBanner" class="alert-banner hidden">
+      🚨 Possible CAN Injection / Integrity Violation Detected
+    </div>
 
-      <section class="stats-grid">
-        <div class="stat-card">
-          <span>Total Frames</span>
-          <strong id="statFrames">--</strong>
-          <small>Loaded CAN frames</small>
-        </div>
+    <!-- KPI CARDS -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span>Frames</span>
+        <strong id="statFrames">--</strong>
+      </div>
 
-        <div class="stat-card">
-          <span>CAN IDs</span>
-          <strong id="statCanIds">--</strong>
-          <small>Unique IDs detected</small>
-        </div>
+      <div class="stat-card">
+        <span>CAN IDs</span>
+        <strong id="statCanIds">--</strong>
+      </div>
 
-        <div class="stat-card">
-          <span>Selected IDs</span>
-          <strong id="selectedCanCount">0</strong>
-          <small>Active filters</small>
-        </div>
+      <div class="stat-card">
+        <span>Confidence</span>
+        <strong id="frameIntelCard">--</strong>
+      </div>
 
-        <div class="stat-card danger">
-          <span>Anomalies</span>
-          <strong id="statAnomalies">--</strong>
-          <small>AI detection</small>
-        </div>
-      </section>
+      <div class="stat-card danger">
+        <span>Security</span>
+        <strong id="securityStatus">--</strong>
+      </div>
+    </section>
 
-      <section class="analyzer-layout">
+    <!-- MAIN GRID -->
+    <section class="analyzer-layout">
 
-        <div class="analyzer-main">
+      <!-- LEFT -->
+      <div class="analyzer-main">
 
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Upload Center</h3>
-              <span>Raw CAN data</span>
+        <!-- UPLOAD -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Upload Data</h3>
+            <span>CAN + DBC</span>
+          </div>
+
+          <div class="upload-grid">
+            <div class="upload-box">
+              <input id="fileInput" type="file" />
+              <button class="primary-btn full" onclick="uploadFile()">Upload Log</button>
+              <p id="status"></p>
             </div>
 
             <div class="upload-box">
-              <label>CAN Log File</label>
-              <input id="fileInput" type="file" accept=".txt,.log,.csv,.asc" />
-              <button class="primary-btn full" onclick="uploadFile()">Upload CAN Log</button>
-              <p id="status">No CAN log uploaded.</p>
-            </div>
-
-            <div class="upload-box">
-              <label>DBC File</label>
-              <input id="dbcFileInput" type="file" accept=".dbc,.txt" />
+              <input id="dbcFileInput" type="file" />
               <button class="secondary-btn full" onclick="uploadDbcFile()">Upload DBC</button>
-              <p id="dbcStatus">No DBC uploaded.</p>
+              <p id="dbcStatus"></p>
             </div>
           </div>
-
-          <div class="panel chart-panel">
-            <div class="panel-header">
-              <h3>Signal Graph</h3>
-              <span id="bestSignalLabel">Selected signal view</span>
-            </div>
-
-            <canvas id="signalChart"></canvas>
-          </div>
-
-          <div class="panel report-panel">
-            <div class="panel-header">
-              <h3>AI CAN Report</h3>
-              <span>Byte + signal analysis</span>
-            </div>
-
-            <pre id="reportBox">Upload a CAN log and run analysis.</pre>
-          </div>
-
-          <div class="panel table-panel">
-            <div class="panel-header">
-              <h3>CAN Frame Table</h3>
-              <span id="frameCount">No frames loaded</span>
-            </div>
-
-            <input
-              id="tableSearch"
-              type="text"
-              placeholder="Search timestamp, CAN ID, or data..."
-              onkeyup="filterTable()"
-            />
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Line</th>
-                    <th>Timestamp</th>
-                    <th>CAN ID</th>
-                    <th>DLC</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody id="frameTableBody">
-                  <tr>
-                    <td colspan="5">Upload CAN log first.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
         </div>
 
-        <aside class="analyzer-filter-panel">
+        <!-- GRAPH -->
+        <div class="panel">
+          <div class="panel-header flex-between">
+            <h3>Signal Visualization</h3>
 
-          <div class="panel">
-            <div class="panel-header">
-              <h3>CAN ID Filters</h3>
-              <span>Select IDs</span>
-            </div>
-
-            <div class="filter-actions">
-              <button class="ghost-btn" onclick="selectAllCanIds()">All</button>
-              <button class="ghost-btn" onclick="clearAllCanIds()">None</button>
-            </div>
-
-            <div id="canIdCheckList" class="check-list">
-              Upload CAN log first.
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Byte Filters</h3>
-              <span>Single bytes</span>
-            </div>
-
-            <div class="filter-actions">
-              <button class="ghost-btn" onclick="selectAllBytes()">All</button>
-              <button class="ghost-btn" onclick="clearAllBytes()">None</button>
-            </div>
-
-            <div id="byteCheckList" class="check-list">
-              <label><input type="checkbox" value="byte_0" /> byte_0</label>
-              <label><input type="checkbox" value="byte_1" /> byte_1</label>
-              <label><input type="checkbox" value="byte_2" /> byte_2</label>
-              <label><input type="checkbox" value="byte_3" /> byte_3</label>
-              <label><input type="checkbox" value="byte_4" /> byte_4</label>
-              <label><input type="checkbox" value="byte_5" /> byte_5</label>
-              <label><input type="checkbox" value="byte_6" /> byte_6</label>
-              <label><input type="checkbox" value="byte_7" /> byte_7</label>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Byte Pair Filters</h3>
-              <span>Sensor pairs</span>
-            </div>
-
-            <div class="filter-actions">
-              <button class="ghost-btn" onclick="selectAllPairs()">All</button>
-              <button class="ghost-btn" onclick="clearAllPairs()">None</button>
-            </div>
-
-            <div id="pairCheckList" class="check-list">
-              <label><input type="checkbox" value="signal_0_1" /> bytes_0_1</label>
-              <label><input type="checkbox" value="signal_2_3" /> bytes_2_3</label>
-              <label><input type="checkbox" value="signal_4_5" /> bytes_4_5</label>
-              <label><input type="checkbox" value="signal_6_7" /> bytes_6_7</label>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Analysis Controls</h3>
-              <span>Run selected</span>
-            </div>
-
-            <label>DBC File</label>
-            <select id="dbcSelect">
-              <option value="">No DBC (AI only)</option>
+            <select id="signalSelect" onchange="redrawSelectedSignal()">
+              <option value="">Auto Select</option>
             </select>
-
-            <button class="primary-btn full" onclick="runSelectedAnalyzer()">
-              Run Selected Analysis
-            </button>
-
-            <button class="secondary-btn full" onclick="downloadReport()">
-              Download Report
-            </button>
           </div>
 
-        </aside>
+          <canvas id="signalChart"></canvas>
+        </div>
 
-      </section>
-    </main>
-  </div>
+        <!-- TABS -->
+        <div class="tabs">
+          <button onclick="switchTab('intel')" class="active">Intelligence</button>
+          <button onclick="switchTab('temporal')">Temporal</button>
+          <button onclick="switchTab('correlation')">Correlation</button>
+          <button onclick="switchTab('security')">Security</button>
+        </div>
 
-  <script src="js/config.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/dbc.js"></script>
-  <script src="js/analyzer_pro.js"></script>
-  <script src="js/upload.js"></script>
+        <!-- TAB CONTENT -->
+        <div id="intel" class="tab-content active">
+          <div id="frameIntelPanel" class="smart-box"></div>
+        </div>
+
+        <div id="temporal" class="tab-content">
+          <div id="temporalPanel" class="smart-box"></div>
+        </div>
+
+        <div id="correlation" class="tab-content">
+          <div id="correlationPanel" class="smart-box"></div>
+        </div>
+
+        <div id="security" class="tab-content">
+          <div id="securityPanel" class="smart-box"></div>
+        </div>
+
+        <!-- REPORT -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>AI Report</h3>
+          </div>
+
+          <pre id="reportBox"></pre>
+        </div>
+
+        <!-- TABLE -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Frame Data</h3>
+          </div>
+
+          <input id="tableSearch" placeholder="Search..." onkeyup="filterTable()" />
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>ID</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+
+              <tbody id="frameTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT FILTER -->
+      <aside class="analyzer-filter-panel">
+
+        <div class="panel">
+          <h3>CAN IDs</h3>
+          <div id="canIdCheckList"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Byte Filters</h3>
+
+          <div class="filter-actions">
+            <button class="ghost-btn" onclick="selectAllBytes()">All</button>
+            <button class="ghost-btn" onclick="clearAllBytes()">None</button>
+          </div>
+
+          <div id="byteCheckList" class="check-list">
+            <label><input type="checkbox" value="byte_0" /> byte_0</label>
+            <label><input type="checkbox" value="byte_1" /> byte_1</label>
+            <label><input type="checkbox" value="byte_2" /> byte_2</label>
+            <label><input type="checkbox" value="byte_3" /> byte_3</label>
+            <label><input type="checkbox" value="byte_4" /> byte_4</label>
+            <label><input type="checkbox" value="byte_5" /> byte_5</label>
+            <label><input type="checkbox" value="byte_6" /> byte_6</label>
+            <label><input type="checkbox" value="byte_7" /> byte_7</label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Byte Pair Signals</h3>
+
+          <div class="filter-actions">
+            <button class="ghost-btn" onclick="selectAllPairs()">All</button>
+            <button class="ghost-btn" onclick="clearAllPairs()">None</button>
+          </div>
+
+          <div id="pairCheckList" class="check-list">
+            <label><input type="checkbox" value="signal_0_1" checked /> bytes_0_1</label>
+            <label><input type="checkbox" value="signal_2_3" checked /> bytes_2_3</label>
+            <label><input type="checkbox" value="signal_4_5" /> bytes_4_5</label>
+            <label><input type="checkbox" value="signal_6_7" /> bytes_6_7</label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <button class="primary-btn full" onclick="runSelectedAnalyzer()">Run Analysis</button>
+        </div>
+
+      </aside>
+
+    </section>
+  </main>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
+
+  document.getElementById(tab).classList.add("active");
+  event.target.classList.add("active");
+}
+</script>
+
+<script src="js/config.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dbc.js"></script>
+<script src="js/analyzer_pro.js"></script>
+<script src="js/upload.js"></script>
 </body>
 </html>

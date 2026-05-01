@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>AutoScope AI | Reports Center</title>
+
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div>
+          <h1>AutoScope AI</h1>
+          <p>CAN Intelligence SaaS</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a class="nav-item" href="main.html">Dashboard</a>
+        <a class="nav-item" href="analyzer.html">CAN Analyzer</a>
+        <a class="nav-item active" href="reports.html">Reports</a>
+        <a class="nav-item" href="#">Security Center</a>
+        <a class="nav-item" href="#">Fleet Insights</a>
+        <a class="nav-item" href="#">Settings</a>
+      </nav>
+    </div>
+
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>
+      Reports Engine Online
+    </div>
+  </aside>
+
+  <main class="main-content">
+
+    <header class="topbar">
+      <div>
+        <h2>Reports Center</h2>
+        <p>Executive overview, technical evidence, AI notes, priority actions, health summary, and comparison intelligence.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="ghost-btn" onclick="location.href='analyzer.html'">Open Analyzer</button>
+        <button class="secondary-btn" onclick="clearReports()">Clear Reports</button>
+        <button class="primary-btn" onclick="downloadCurrentReport()">Export Report</button>
+      </div>
+    </header>
+
+    <section class="report-hero">
+      <div>
+        <span class="eyebrow">Latest Analysis Workspace</span>
+        <h1 id="reportVehicleTitle">AI CAN Diagnostic Report</h1>
+        <p id="reportSubtitle">
+          Load your latest analyzer result to generate engineer-ready and client-ready reports.
+        </p>
+      </div>
+
+      <div class="report-health-badge" id="reportHealthBadge">
+        <span>System Health</span>
+        <strong>UNKNOWN</strong>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span>Total CAN IDs</span>
+        <strong id="reportTotalIds">--</strong>
+        <small>Detected IDs</small>
+      </div>
+
+      <div class="stat-card">
+        <span>Normal</span>
+        <strong id="reportNormal">--</strong>
+        <small>Healthy frames</small>
+      </div>
+
+      <div class="stat-card warning-card">
+        <span>Needs Analysis</span>
+        <strong id="reportReview">--</strong>
+        <small>Unknown / low confidence</small>
+      </div>
+
+      <div class="stat-card danger">
+        <span>High Risk</span>
+        <strong id="reportRisk">--</strong>
+        <small>Attack / integrity risk</small>
+      </div>
+    </section>
+
+    <section class="reports-dashboard-grid">
+
+      <div class="panel report-nav-panel">
+        <div class="panel-header">
+          <h3>Report Types</h3>
+          <span>Choose output view</span>
+        </div>
+
+        <div class="report-tabs">
+          <button class="active" onclick="switchReportTab('overview', this)">
+            <b>01</b>
+            <span>CAN ID Overview</span>
+            <small>All IDs, function guesses, priority</small>
+          </button>
+
+          <button onclick="switchReportTab('technical', this)">
+            <b>02</b>
+            <span>Technical Report</span>
+            <small>Full analyzer evidence</small>
+          </button>
+
+          <button onclick="switchReportTab('aiNotes', this)">
+            <b>03</b>
+            <span>AI Notes</span>
+            <small>Simple explanation</small>
+          </button>
+
+          <button onclick="switchReportTab('action', this)">
+            <b>04</b>
+            <span>Action Plan</span>
+            <small>What to inspect first</small>
+          </button>
+
+          <button onclick="switchReportTab('summary', this)">
+            <b>05</b>
+            <span>System Summary</span>
+            <small>Fast health view</small>
+          </button>
+
+          <button onclick="switchReportTab('comparison', this)">
+            <b>06</b>
+            <span>Comparison</span>
+            <small>Before vs after / normal vs attack</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="reports-content">
+
+        <section id="overview" class="tab-content active">
+          <div class="panel">
+            <div class="panel-header report-section-header">
+              <div>
+                <h3>CAN ID Overview Report</h3>
+                <span>Engineer table with expected function and priority</span>
+              </div>
+
+              <div class="report-tools">
+                <input id="overviewSearch" type="text" placeholder="Search CAN ID, function, priority..." onkeyup="filterOverviewTable()" />
+              </div>
+            </div>
+
+            <div class="table-wrap premium-table-wrap">
+              <table class="premium-table">
+                <thead>
+                  <tr>
+                    <th>Priority</th>
+                    <th>CAN ID</th>
+                    <th>Frames</th>
+                    <th>DLC</th>
+                    <th>Avg Interval</th>
+                    <th>Expected Function</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="overviewTableBody">
+                  <tr>
+                    <td colspan="7">No report loaded yet. Run analyzer first.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="technical" class="tab-content">
+          <div class="panel">
+            <div class="panel-header report-section-header">
+              <div>
+                <h3>Detailed Technical Report</h3>
+                <span>Complete raw AI CAN analysis text</span>
+              </div>
+
+              <button class="ghost-btn" onclick="copyTechnicalReport()">Copy</button>
+            </div>
+
+            <pre id="technicalReportBox">No technical report loaded yet.</pre>
+          </div>
+        </section>
+
+        <section id="aiNotes" class="tab-content">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>AI Notes Report</h3>
+              <span>Simple dialect-style explanation for humans</span>
+            </div>
+
+            <div id="aiNotesBox" class="note-card">
+              No AI notes available yet.
+            </div>
+          </div>
+        </section>
+
+        <section id="action" class="tab-content">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Priority / Action Report</h3>
+              <span>Decision-focused inspection list</span>
+            </div>
+
+            <div id="actionReportBox" class="action-list">
+              No action report available yet.
+            </div>
+          </div>
+        </section>
+
+        <section id="summary" class="tab-content">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>System Summary</h3>
+              <span>Fast executive health overview</span>
+            </div>
+
+            <div id="systemSummaryBox" class="summary-grid">
+              <div class="empty-state">No system summary available yet.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="comparison" class="tab-content">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Comparison Report</h3>
+              <span>Future intelligence: compare logs</span>
+            </div>
+
+            <div class="comparison-shell">
+              <div class="comparison-card">
+                <h4>Baseline Log</h4>
+                <p>Normal behavior profile</p>
+                <button class="ghost-btn">Coming Soon</button>
+              </div>
+
+              <div class="comparison-vs">VS</div>
+
+              <div class="comparison-card">
+                <h4>Current Log</h4>
+                <p>Latest uploaded analysis</p>
+                <button class="ghost-btn">Coming Soon</button>
+              </div>
+            </div>
+
+            <div id="comparisonBox" class="smart-box">
+              Comparison mode will compare normal vs attack logs, before vs after repair, or vehicle A vs vehicle B.
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/reports.js"></script>
+</body>
+</html>
